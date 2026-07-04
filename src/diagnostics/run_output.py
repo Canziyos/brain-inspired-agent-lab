@@ -1,0 +1,174 @@
+import csv
+import logging
+from datetime import datetime
+from pathlib import Path
+
+from src.simulation.metrics import StepMetrics
+
+
+LOGGER_NAME = "brain_lab"
+
+
+def create_run_directory(
+    output_root: str,
+) -> Path:
+    timestamp = datetime.now().strftime(
+        "%Y-%m-%d_%H-%M-%S-%f"
+    )
+
+    run_directory = (
+        Path(output_root)
+        / timestamp
+    )
+
+    run_directory.mkdir(
+        parents=True,
+        exist_ok=False,
+    )
+
+    return run_directory
+
+
+def configure_run_logging(
+    run_directory: Path | None,
+    debug: bool,
+) -> logging.Logger:
+    logger = logging.getLogger(LOGGER_NAME)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    for handler in logger.handlers:
+        handler.close()
+
+    logger.handlers.clear()
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(
+        logging.DEBUG
+        if debug
+        else logging.INFO
+    )
+    console_handler.setFormatter(
+        logging.Formatter(
+            "%(levelname)s: %(message)s"
+        )
+    )
+
+    logger.addHandler(console_handler)
+
+    if run_directory is None:
+        return logger
+
+    file_handler = logging.FileHandler(
+        run_directory / "run.log",
+        encoding="utf-8",
+    )
+    file_handler.setLevel(
+        logging.DEBUG
+        if debug
+        else logging.INFO
+    )
+    file_handler.setFormatter(
+        logging.Formatter(
+            fmt=(
+                "%(asctime)s | %(levelname)s | "
+                "%(name)s | %(message)s"
+            ),
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+
+    logger.addHandler(file_handler)
+
+    return logger
+
+def write_steps_csv(
+    history: list[StepMetrics],
+    output_path: Path,
+) -> None:
+    fieldnames = [
+        "step",
+        "position_x",
+        "position_y",
+        "energy",
+        "health",
+        "curiosity",
+        "reward",
+        "predicted_reward",
+        "loss",
+        "event",
+        "visited_count",
+        "known_cell_count",
+        "goal_kind",
+        "goal_target_x",
+        "goal_target_y",
+        "rule_action",
+        "action_reason",
+        "network_action",
+        "choices_agree",
+        "termination_reason",
+    ]
+
+    with output_path.open(
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=fieldnames,
+        )
+        writer.writeheader()
+
+        for metrics in history:
+            goal_target_x = ""
+            goal_target_y = ""
+
+            if metrics.goal_target is not None:
+                goal_target_x = metrics.goal_target[0]
+                goal_target_y = metrics.goal_target[1]
+
+            writer.writerow(
+                {
+                    "step": metrics.step,
+                    "position_x": metrics.position[0],
+                    "position_y": metrics.position[1],
+                    "energy": metrics.energy,
+                    "health": metrics.health,
+                    "curiosity": metrics.curiosity,
+                    "reward": metrics.reward,
+                    "predicted_reward": (
+                        metrics.predicted_reward
+                    ),
+                    "loss": (
+                        metrics.loss
+                        if metrics.loss is not None
+                        else ""
+                    ),
+                    "event": metrics.event,
+                    "visited_count": (
+                        metrics.visited_count
+                    ),
+                    "known_cell_count": (
+                        metrics.known_cell_count
+                    ),
+                    "goal_kind": (
+                        metrics.goal_kind or ""
+                    ),
+                    "goal_target_x": goal_target_x,
+                    "goal_target_y": goal_target_y,
+                    "rule_action": metrics.rule_action,
+                    "action_reason": (
+                        metrics.action_reason
+                    ),
+                    "network_action": (
+                        metrics.network_action
+                    ),
+                    "choices_agree": (
+                        metrics.choices_agree
+                    ),
+                    "termination_reason": (
+                        metrics.termination_reason or ""
+                    ),
+                }
+            )
