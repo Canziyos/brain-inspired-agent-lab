@@ -82,6 +82,7 @@ def configure_run_logging(
 
     return logger
 
+
 def write_steps_csv(
     history: list[StepMetrics],
     output_path: Path,
@@ -107,6 +108,20 @@ def write_steps_csv(
         "network_action",
         "choices_agree",
         "termination_reason",
+
+        "outcome_predicted_energy_change",
+        "outcome_actual_energy_change",
+        "outcome_predicted_health_change",
+        "outcome_actual_health_change",
+        "outcome_predicted_curiosity_change",
+        "outcome_actual_curiosity_change",
+        "outcome_predicted_event",
+        "outcome_actual_event",
+        "outcome_event_correct",
+        "outcome_state_mae",
+        "outcome_total_loss",
+        "outcome_state_loss",
+        "outcome_event_loss",
     ]
 
     with output_path.open(
@@ -118,15 +133,20 @@ def write_steps_csv(
             file,
             fieldnames=fieldnames,
         )
+
         writer.writeheader()
 
         for metrics in history:
-            goal_target_x = ""
-            goal_target_y = ""
+            goal_target_x: int | str = ""
+            goal_target_y: int | str = ""
 
             if metrics.goal_target is not None:
-                goal_target_x = metrics.goal_target[0]
-                goal_target_y = metrics.goal_target[1]
+                (
+                    goal_target_x,
+                    goal_target_y,
+                ) = metrics.goal_target
+
+            outcome = metrics.outcome_model
 
             writer.writerow(
                 {
@@ -137,38 +157,112 @@ def write_steps_csv(
                     "health": metrics.health,
                     "curiosity": metrics.curiosity,
                     "reward": metrics.reward,
+
                     "predicted_reward": (
                         metrics.predicted_reward
                     ),
+
                     "loss": (
                         metrics.loss
                         if metrics.loss is not None
                         else ""
                     ),
+
                     "event": metrics.event,
+
                     "visited_count": (
                         metrics.visited_count
                     ),
+
                     "known_cell_count": (
                         metrics.known_cell_count
                     ),
+
                     "goal_kind": (
-                        metrics.goal_kind or ""
+                        metrics.goal_kind
+                        or ""
                     ),
+
                     "goal_target_x": goal_target_x,
                     "goal_target_y": goal_target_y,
-                    "rule_action": metrics.rule_action,
+
+                    "rule_action": (
+                        metrics.rule_action
+                    ),
+
                     "action_reason": (
                         metrics.action_reason
                     ),
+
                     "network_action": (
                         metrics.network_action
                     ),
+
                     "choices_agree": (
                         metrics.choices_agree
                     ),
+
                     "termination_reason": (
-                        metrics.termination_reason or ""
+                        metrics.termination_reason
+                        or ""
+                    ),
+
+                    "outcome_predicted_energy_change": (
+                        outcome.predicted_energy_change
+                    ),
+
+                    "outcome_actual_energy_change": (
+                        outcome.actual_energy_change
+                    ),
+
+                    "outcome_predicted_health_change": (
+                        outcome.predicted_health_change
+                    ),
+
+                    "outcome_actual_health_change": (
+                        outcome.actual_health_change
+                    ),
+
+                    "outcome_predicted_curiosity_change": (
+                        outcome.predicted_curiosity_change
+                    ),
+
+                    "outcome_actual_curiosity_change": (
+                        outcome.actual_curiosity_change
+                    ),
+
+                    "outcome_predicted_event": (
+                        outcome.predicted_event
+                    ),
+
+                    "outcome_actual_event": (
+                        outcome.actual_event
+                    ),
+
+                    "outcome_event_correct": (
+                        outcome.event_correct
+                    ),
+
+                    "outcome_state_mae": (
+                        outcome.state_mae
+                    ),
+
+                    "outcome_total_loss": (
+                        outcome.total_loss
+                        if outcome.total_loss is not None
+                        else ""
+                    ),
+
+                    "outcome_state_loss": (
+                        outcome.state_loss
+                        if outcome.state_loss is not None
+                        else ""
+                    ),
+
+                    "outcome_event_loss": (
+                        outcome.event_loss
+                        if outcome.event_loss is not None
+                        else ""
                     ),
                 }
             )

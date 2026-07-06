@@ -206,6 +206,15 @@ class BabyViceGridEnv(gym.Env):
         observation = self._get_observation()
         info = self._get_info()
         info["event"] = outcome.event.name
+        info["energy_change"] = (
+            outcome.energy_change
+        )
+        info["health_change"] = (
+            outcome.health_change
+        )
+        info["curiosity_change"] = (
+            outcome.curiosity_change
+        )
         if dead:
             termination_reason = "dead"
         elif task_complete:

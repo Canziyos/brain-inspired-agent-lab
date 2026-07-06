@@ -9,9 +9,15 @@ from src.diagnostics.run_output import (
     write_steps_csv,
 )
 from src.envs.grid_world_env import BabyViceGridEnv
-from src.learning.samples import RewardSample
+from src.learning.samples import (
+    OutcomeSample,
+    RewardSample,
+)
 from src.simulation.metrics import StepMetrics
-from src.simulation.setup import create_reward_network
+from src.simulation.setup import (
+    create_outcome_model,
+    create_reward_network,
+)
 from src.simulation.step import run_simulation_step
 from src.views.animation import animate_simulation
 from src.views.plots import plot_simulation_summary
@@ -20,13 +26,16 @@ from src.views.plots import plot_simulation_summary
 def run_simulation(
     config: SimulationConfig,
 ) -> list[StepMetrics]:
-    torch.manual_seed(config.torch_seed)
-
     policy_rng = random.Random(
         config.random_seed + 1
     )
-    training_rng = random.Random(
+
+    reward_training_rng = random.Random(
         config.random_seed + 2
+    )
+
+    outcome_training_rng = random.Random(
+        config.random_seed + 3
     )
 
     run_directory = None
@@ -61,11 +70,29 @@ def run_simulation(
     env = BabyViceGridEnv(config=config)
     env.reset(seed=config.random_seed)
 
-    reward_network, optimizer = create_reward_network(
-        config
+    # Preserve the original reward-network
+    # initialisation sequence.
+    torch.manual_seed(config.torch_seed)
+
+    (
+        reward_network,
+        reward_optimizer,
+    ) = create_reward_network(config)
+
+    # Initialise the recurrent outcome model with
+    # a separate deterministic seed.
+    torch.manual_seed(
+        config.torch_seed + 1
     )
 
+    (
+        outcome_model,
+        outcome_optimizer,
+    ) = create_outcome_model(config)
+
     reward_samples: list[RewardSample] = []
+    outcome_samples: list[OutcomeSample] = []
+
     history: list[StepMetrics] = []
 
     agreement_count = 0
@@ -87,11 +114,21 @@ def run_simulation(
                 step=step,
                 config=config,
                 env=env,
+
                 reward_network=reward_network,
-                optimizer=optimizer,
+                reward_optimizer=reward_optimizer,
                 reward_samples=reward_samples,
+
+                outcome_model=outcome_model,
+                outcome_optimizer=outcome_optimizer,
+                outcome_samples=outcome_samples,
+
                 policy_rng=policy_rng,
-                training_rng=training_rng,
+                training_rng=reward_training_rng,
+                outcome_training_rng=(
+                    outcome_training_rng
+                ),
+
                 agreement_count=agreement_count,
                 comparison_count=comparison_count,
             )
@@ -110,18 +147,26 @@ def run_simulation(
                     step,
                 )
 
-            elif termination_reason == "goals_complete":
+            elif termination_reason == (
+                "goals_complete"
+            ):
                 logger.info(
                     (
-                        "Baby Vice completed all reachable "
-                        "goals after %d steps."
+                        "Baby Vice completed all "
+                        "reachable goals after "
+                        "%d steps."
                     ),
                     step,
                 )
 
-            elif termination_reason == "time_limit":
+            elif termination_reason == (
+                "time_limit"
+            ):
                 logger.info(
-                    "Simulation reached the time limit after %d steps.",
+                    (
+                        "Simulation reached the "
+                        "time limit after %d steps."
+                    ),
                     step,
                 )
 
@@ -166,7 +211,8 @@ def run_simulation(
                         "total_reward=%.2f, "
                         "mean_reward=%.3f, "
                         "agreement=%.1f%%, "
-                        "terminated=%s, truncated=%s"
+                        "terminated=%s, "
+                        "truncated=%s"
                     ),
                     len(history),
                     final.position,
@@ -181,6 +227,7 @@ def run_simulation(
                     terminated,
                     truncated,
                 )
+
             else:
                 logger.warning(
                     "Simulation produced no step metrics."

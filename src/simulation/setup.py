@@ -4,6 +4,7 @@ import torch
 
 from src.config import SimulationConfig
 from src.core.world import DANGER, FOOD, MYSTERY, World
+from src.learning.outcome_model import RateRecurrentOutcomeModel
 from src.learning.reward_network import ImmediateRewardNetwork
 
 
@@ -55,3 +56,23 @@ def create_reward_network(
     )
 
     return reward_network, optimizer
+
+
+def create_outcome_model(
+    config: SimulationConfig,
+) -> tuple[
+    RateRecurrentOutcomeModel,
+    torch.optim.Optimizer,
+]:
+    outcome_model = RateRecurrentOutcomeModel(
+        neuron_count=config.outcome_neuron_count,
+        neural_ticks=config.outcome_neural_ticks,
+        leak=config.outcome_leak,
+    )
+
+    optimizer = torch.optim.Adam(
+        outcome_model.parameters(),
+        lr=config.outcome_learning_rate,
+    )
+
+    return outcome_model, optimizer

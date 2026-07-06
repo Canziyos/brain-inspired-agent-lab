@@ -27,3 +27,7 @@ class SimulationConfig:
 
     save_run_outputs: bool = False
     output_root: str = "outputs/runs"
+    outcome_learning_rate: float = 0.003
+    outcome_neuron_count: int = 24
+    outcome_neural_ticks: int = 8
+    outcome_leak: float = 0.35

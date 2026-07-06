@@ -5,15 +5,28 @@ import torch
 
 from src.config import SimulationConfig
 from src.core.actions import Action
+from src.core.dynamics_types import EventType
 from src.envs.grid_world_env import (
     BabyViceGridEnv,
     action_to_discrete,
+)
+from src.learning.outcome_features import (
+    encode_outcome_features,
+)
+from src.learning.outcome_model import (
+    RateRecurrentOutcomeModel,
+    event_index,
+    predict_outcome,
+    train_outcome_model,
 )
 from src.learning.reward_network import (
     ImmediateRewardNetwork,
     train_reward_network,
 )
-from src.learning.samples import RewardSample
+from src.learning.samples import (
+    OutcomeSample,
+    RewardSample,
+)
 from src.planning.goal_planner import (
     select_goal_plan,
 )
@@ -27,7 +40,10 @@ from src.policies.rule_policy import (
     choose_action,
     evaluate_actions,
 )
-from src.simulation.metrics import StepMetrics
+from src.simulation.metrics import (
+    OutcomeModelMetrics,
+    StepMetrics,
+)
 
 
 logger = logging.getLogger(
@@ -49,11 +65,19 @@ def run_simulation_step(
     step: int,
     config: SimulationConfig,
     env: BabyViceGridEnv,
+
     reward_network: ImmediateRewardNetwork,
-    optimizer: torch.optim.Optimizer,
+    reward_optimizer: torch.optim.Optimizer,
     reward_samples: list[RewardSample],
+
+    outcome_model: RateRecurrentOutcomeModel,
+    outcome_optimizer: torch.optim.Optimizer,
+    outcome_samples: list[OutcomeSample],
+
     policy_rng: random.Random,
     training_rng: random.Random,
+    outcome_training_rng: random.Random,
+
     agreement_count: int,
     comparison_count: int,
 ) -> tuple[StepMetrics, int, int, bool, bool]:
@@ -65,9 +89,13 @@ def run_simulation_step(
     agent = env.agent
     world = env.world
 
+    # Perceive the currently visible neighbouring cells
+    # and update Baby Vice's belief map.
     observations = agent.sense(world)
     agent.observe(observations)
 
+    # Select the current symbolic goal and calculate
+    # a believed-safe path toward it.
     plan = select_goal_plan(
         agent=agent,
         width=config.world_width,
@@ -80,24 +108,28 @@ def run_simulation_step(
         plan=plan,
     )
 
+    # The rule/planning system still controls the real action.
     rule_choice = choose_action(
         evaluations,
         rng=policy_rng,
     )
 
-    predictions = predict_actions(
+    # Existing immediate-reward neural shadow.
+    reward_predictions = predict_actions(
         agent=agent,
         evaluations=evaluations,
         model=reward_network,
     )
 
     network_choice = choose_network_action(
-        predictions
+        reward_predictions
     )
 
-    chosen_prediction = find_action_prediction(
-        chosen_action=rule_choice.action,
-        predictions=predictions,
+    chosen_reward_prediction = (
+        find_action_prediction(
+            chosen_action=rule_choice.action,
+            predictions=reward_predictions,
+        )
     )
 
     choices_agree = actions_match(
@@ -110,9 +142,35 @@ def run_simulation_step(
     if choices_agree:
         agreement_count += 1
 
+    chosen_action = rule_choice.action
+
+    # Capture the state BEFORE executing the action.
+    # The outcome model must predict the future rather
+    # than inspect the result afterward.
+    pre_action_state = agent.snapshot()
+
+    perceived_cell = agent.known_cells.get(
+        (
+            chosen_action.target_x,
+            chosen_action.target_y,
+        )
+    )
+
+    outcome_features = encode_outcome_features(
+        agent_state=pre_action_state,
+        action=chosen_action,
+        perceived_cell=perceived_cell,
+    )
+
+    outcome_prediction = predict_outcome(
+        model=outcome_model,
+        features=outcome_features,
+    )
+
+    # Gymnasium remains the sole transition authority.
     discrete_action = action_to_discrete(
         position=(agent.x, agent.y),
-        action=rule_choice.action,
+        action=chosen_action,
     )
 
     (
@@ -123,19 +181,124 @@ def run_simulation_step(
         info,
     ) = env.step(discrete_action)
 
+    # Read the real structured outcome produced by
+    # the environment.
+    actual_event = EventType[
+        info["event"]
+    ]
+
+    actual_state_changes = (
+        float(info["energy_change"]),
+        float(info["health_change"]),
+        float(info["curiosity_change"]),
+    )
+
+    # Train the original immediate-reward network.
     reward_samples.append(
         RewardSample(
-            features=chosen_prediction.features,
+            features=(
+                chosen_reward_prediction.features
+            ),
             reward=reward,
         )
     )
 
-    loss = train_reward_network(
+    reward_loss = train_reward_network(
         model=reward_network,
-        optimizer=optimizer,
+        optimizer=reward_optimizer,
         reward_samples=reward_samples,
         batch_size=config.batch_size,
         rng=training_rng,
+    )
+
+    # Train the new recurrent structured-outcome model.
+    outcome_samples.append(
+        OutcomeSample(
+            features=outcome_features,
+            state_changes=actual_state_changes,
+            event_index=event_index(
+                actual_event
+            ),
+        )
+    )
+
+    outcome_training_result = (
+        train_outcome_model(
+            model=outcome_model,
+            optimizer=outcome_optimizer,
+            samples=outcome_samples,
+            batch_size=config.batch_size,
+            rng=outcome_training_rng,
+        )
+    )
+
+    outcome_state_mae = (
+        abs(
+            outcome_prediction.energy_change
+            - actual_state_changes[0]
+        )
+        + abs(
+            outcome_prediction.health_change
+            - actual_state_changes[1]
+        )
+        + abs(
+            outcome_prediction.curiosity_change
+            - actual_state_changes[2]
+        )
+    ) / 3.0
+
+    outcome_metrics = OutcomeModelMetrics(
+        predicted_energy_change=(
+            outcome_prediction.energy_change
+        ),
+        actual_energy_change=(
+            actual_state_changes[0]
+        ),
+
+        predicted_health_change=(
+            outcome_prediction.health_change
+        ),
+        actual_health_change=(
+            actual_state_changes[1]
+        ),
+
+        predicted_curiosity_change=(
+            outcome_prediction.curiosity_change
+        ),
+        actual_curiosity_change=(
+            actual_state_changes[2]
+        ),
+
+        predicted_event=(
+            outcome_prediction.event.name
+        ),
+        actual_event=actual_event.name,
+        event_correct=(
+            outcome_prediction.event
+            == actual_event
+        ),
+
+        state_mae=outcome_state_mae,
+
+        total_loss=(
+            outcome_training_result.total_loss
+            if outcome_training_result is not None
+            else None
+        ),
+        state_loss=(
+            outcome_training_result.state_loss
+            if outcome_training_result is not None
+            else None
+        ),
+        event_loss=(
+            outcome_training_result.event_loss
+            if outcome_training_result is not None
+            else None
+        ),
+
+        final_neural_state=(
+            outcome_prediction.final_neural_state
+        ),
     )
 
     goal_kind = (
@@ -164,11 +327,11 @@ def run_simulation_step(
 
         reward=reward,
         predicted_reward=(
-            chosen_prediction.predicted_reward
+            chosen_reward_prediction.predicted_reward
         ),
-        loss=loss,
+        loss=reward_loss,
 
-        event=info["event"],
+        event=actual_event.name,
         visited_count=len(agent.visited),
         known_cell_count=len(agent.known_cells),
 
@@ -177,7 +340,7 @@ def run_simulation_step(
         grid_snapshot=info["grid"],
 
         rule_action=format_action(
-            rule_choice.action
+            chosen_action
         ),
         action_reason=rule_choice.reason,
 
@@ -188,6 +351,8 @@ def run_simulation_step(
         termination_reason=termination_reason,
         goal_kind=goal_kind,
         goal_target=goal_target,
+
+        outcome_model=outcome_metrics,
     )
 
     logger.debug(
@@ -196,7 +361,8 @@ def run_simulation_step(
             "goal_kind=%s goal_target=%s "
             "rule_action=%s reason=%s "
             "network_action=%s reward=%.2f "
-            "predicted_reward=%.2f loss=%s "
+            "predicted_reward=%.2f "
+            "reward_loss=%s "
             "visited=%d known=%d agree=%s "
             "termination_reason=%s"
         ),
@@ -215,6 +381,36 @@ def run_simulation_step(
         metrics.known_cell_count,
         metrics.choices_agree,
         metrics.termination_reason,
+    )
+
+    logger.debug(
+        (
+            "outcome_model: "
+            "delta_pred=(%.2f, %.2f, %.2f) "
+            "delta_actual=(%.2f, %.2f, %.2f) "
+            "event_pred=%s event_actual=%s "
+            "event_correct=%s "
+            "state_mae=%.3f "
+            "total_loss=%s "
+            "state_loss=%s "
+            "event_loss=%s"
+        ),
+        outcome_metrics.predicted_energy_change,
+        outcome_metrics.predicted_health_change,
+        outcome_metrics.predicted_curiosity_change,
+
+        outcome_metrics.actual_energy_change,
+        outcome_metrics.actual_health_change,
+        outcome_metrics.actual_curiosity_change,
+
+        outcome_metrics.predicted_event,
+        outcome_metrics.actual_event,
+        outcome_metrics.event_correct,
+        outcome_metrics.state_mae,
+
+        outcome_metrics.total_loss,
+        outcome_metrics.state_loss,
+        outcome_metrics.event_loss,
     )
 
     return (

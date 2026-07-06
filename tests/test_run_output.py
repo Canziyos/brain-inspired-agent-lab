@@ -1,7 +1,7 @@
 import csv
 
 from src.diagnostics.run_output import write_steps_csv
-from src.simulation.metrics import StepMetrics
+from src.simulation.metrics import OutcomeModelMetrics, StepMetrics
 
 
 def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
@@ -27,6 +27,22 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
             termination_reason=None,
             goal_kind="mystery",
             goal_target=(1, 2),
+            outcome_model=OutcomeModelMetrics(
+                predicted_energy_change=-1.0,
+                actual_energy_change=-2.0,
+                predicted_health_change=0.0,
+                actual_health_change=0.0,
+                predicted_curiosity_change=4.0,
+                actual_curiosity_change=5.0,
+                predicted_event="FOUND_FOOD",
+                actual_event="DISCOVERED_MYSTERY",
+                event_correct=False,
+                state_mae=1.0,
+                total_loss=None,
+                state_loss=None,
+                event_loss=None,
+                final_neural_state=(0.1, 0.2),
+            ),
         )
     ]
 
@@ -60,5 +76,18 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
             "network_action": "rest",
             "choices_agree": "True",
             "termination_reason": "",
+            "outcome_predicted_energy_change": "-1.0",
+            "outcome_actual_energy_change": "-2.0",
+            "outcome_predicted_health_change": "0.0",
+            "outcome_actual_health_change": "0.0",
+            "outcome_predicted_curiosity_change": "4.0",
+            "outcome_actual_curiosity_change": "5.0",
+            "outcome_predicted_event": "FOUND_FOOD",
+            "outcome_actual_event": "DISCOVERED_MYSTERY",
+            "outcome_event_correct": "False",
+            "outcome_state_mae": "1.0",
+            "outcome_total_loss": "",
+            "outcome_state_loss": "",
+            "outcome_event_loss": "",
         }
     ]
