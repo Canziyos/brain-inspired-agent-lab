@@ -119,9 +119,15 @@ def write_steps_csv(
         "outcome_actual_event",
         "outcome_event_correct",
         "outcome_state_mae",
+        "outcome_reset_state_mae",
+        "outcome_persistent_better_than_reset",
         "outcome_total_loss",
         "outcome_state_loss",
         "outcome_event_loss",
+        "outcome_neural_state_mean",
+        "outcome_neural_state_std",
+        "outcome_neural_state_min",
+        "outcome_neural_state_max",
     ]
 
     with output_path.open(
@@ -247,6 +253,14 @@ def write_steps_csv(
                         outcome.state_mae
                     ),
 
+                    "outcome_reset_state_mae": (
+                        outcome.reset_state_mae
+                    ),
+
+                    "outcome_persistent_better_than_reset": (
+                        outcome.persistent_better_than_reset
+                    ),
+
                     "outcome_total_loss": (
                         outcome.total_loss
                         if outcome.total_loss is not None
@@ -263,6 +277,22 @@ def write_steps_csv(
                         outcome.event_loss
                         if outcome.event_loss is not None
                         else ""
+                    ),
+
+                    "outcome_neural_state_mean": (
+                        outcome.neural_state_mean
+                    ),
+
+                    "outcome_neural_state_std": (
+                        outcome.neural_state_std
+                    ),
+
+                    "outcome_neural_state_min": (
+                        outcome.neural_state_min
+                    ),
+
+                    "outcome_neural_state_max": (
+                        outcome.neural_state_max
                     ),
                 }
             )

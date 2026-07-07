@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-   
+
 @dataclass(slots=True)
 class OutcomeModelMetrics:
     predicted_energy_change: float
@@ -17,13 +17,20 @@ class OutcomeModelMetrics:
     event_correct: bool
 
     state_mae: float
+    reset_state_mae: float
+    persistent_better_than_reset: bool
 
     total_loss: float | None
     state_loss: float | None
     event_loss: float | None
 
     final_neural_state: tuple[float, ...]
-    
+    neural_state_mean: float
+    neural_state_std: float
+    neural_state_min: float
+    neural_state_max: float
+
+
 @dataclass(slots=True)
 class StepMetrics:
     step: int
@@ -53,4 +60,3 @@ class StepMetrics:
     goal_kind: str | None
     goal_target: tuple[int, int] | None
     outcome_model: OutcomeModelMetrics
- 

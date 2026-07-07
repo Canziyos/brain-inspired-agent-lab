@@ -89,6 +89,11 @@ def run_simulation(
         outcome_model,
         outcome_optimizer,
     ) = create_outcome_model(config)
+    outcome_neural_state = outcome_model.initial_neural_state(
+        batch_size=1,
+        device=torch.device("cpu"),
+        dtype=torch.float32,
+    )
 
     reward_samples: list[RewardSample] = []
     outcome_samples: list[OutcomeSample] = []
@@ -110,11 +115,11 @@ def run_simulation(
                 comparison_count,
                 terminated,
                 truncated,
+                outcome_neural_state,
             ) = run_simulation_step(
                 step=step,
                 config=config,
                 env=env,
-
                 reward_network=reward_network,
                 reward_optimizer=reward_optimizer,
                 reward_samples=reward_samples,
@@ -131,6 +136,7 @@ def run_simulation(
 
                 agreement_count=agreement_count,
                 comparison_count=comparison_count,
+                outcome_neural_state=outcome_neural_state,
             )
 
             history.append(metrics)

@@ -16,7 +16,7 @@ from src.learning.outcome_features import (
 from src.learning.outcome_model import (
     RateRecurrentOutcomeModel,
     event_index,
-    predict_outcome,
+    predict_outcome_with_state,
     train_outcome_model,
 )
 from src.learning.reward_network import (
@@ -80,7 +80,8 @@ def run_simulation_step(
 
     agreement_count: int,
     comparison_count: int,
-) -> tuple[StepMetrics, int, int, bool, bool]:
+    outcome_neural_state: torch.Tensor,
+) -> tuple[StepMetrics, int, int, bool, bool, torch.Tensor]:
     if env.agent is None or env.world is None:
         raise RuntimeError(
             "Environment must be reset before simulation."
@@ -89,13 +90,9 @@ def run_simulation_step(
     agent = env.agent
     world = env.world
 
-    # Perceive the currently visible neighbouring cells
-    # and update Baby Vice's belief map.
     observations = agent.sense(world)
     agent.observe(observations)
 
-    # Select the current symbolic goal and calculate
-    # a believed-safe path toward it.
     plan = select_goal_plan(
         agent=agent,
         width=config.world_width,
@@ -108,13 +105,11 @@ def run_simulation_step(
         plan=plan,
     )
 
-    # The rule/planning system still controls the real action.
     rule_choice = choose_action(
         evaluations,
         rng=policy_rng,
     )
 
-    # Existing immediate-reward neural shadow.
     reward_predictions = predict_actions(
         agent=agent,
         evaluations=evaluations,
@@ -144,9 +139,6 @@ def run_simulation_step(
 
     chosen_action = rule_choice.action
 
-    # Capture the state BEFORE executing the action.
-    # The outcome model must predict the future rather
-    # than inspect the result afterward.
     pre_action_state = agent.snapshot()
 
     perceived_cell = agent.known_cells.get(
@@ -162,12 +154,28 @@ def run_simulation_step(
         perceived_cell=perceived_cell,
     )
 
-    outcome_prediction = predict_outcome(
-        model=outcome_model,
-        features=outcome_features,
+    state_before_prediction = outcome_neural_state.detach()
+
+    outcome_prediction, updated_outcome_neural_state = (
+        predict_outcome_with_state(
+            model=outcome_model,
+            features=outcome_features,
+            neural_state=state_before_prediction,
+        )
     )
 
-    # Gymnasium remains the sole transition authority.
+    reset_neural_state = outcome_model.initial_neural_state(
+        batch_size=1,
+        device=state_before_prediction.device,
+        dtype=state_before_prediction.dtype,
+    )
+
+    reset_outcome_prediction, _ = predict_outcome_with_state(
+        model=outcome_model,
+        features=outcome_features,
+        neural_state=reset_neural_state,
+    )
+
     discrete_action = action_to_discrete(
         position=(agent.x, agent.y),
         action=chosen_action,
@@ -181,8 +189,6 @@ def run_simulation_step(
         info,
     ) = env.step(discrete_action)
 
-    # Read the real structured outcome produced by
-    # the environment.
     actual_event = EventType[
         info["event"]
     ]
@@ -193,7 +199,6 @@ def run_simulation_step(
         float(info["curiosity_change"]),
     )
 
-    # Train the original immediate-reward network.
     reward_samples.append(
         RewardSample(
             features=(
@@ -211,13 +216,16 @@ def run_simulation_step(
         rng=training_rng,
     )
 
-    # Train the new recurrent structured-outcome model.
     outcome_samples.append(
         OutcomeSample(
             features=outcome_features,
             state_changes=actual_state_changes,
             event_index=event_index(
                 actual_event
+            ),
+            neural_state=tuple(
+                float(value)
+                for value in state_before_prediction[0].tolist()
             ),
         )
     )
@@ -243,6 +251,21 @@ def run_simulation_step(
         )
         + abs(
             outcome_prediction.curiosity_change
+            - actual_state_changes[2]
+        )
+    ) / 3.0
+
+    reset_outcome_state_mae = (
+        abs(
+            reset_outcome_prediction.energy_change
+            - actual_state_changes[0]
+        )
+        + abs(
+            reset_outcome_prediction.health_change
+            - actual_state_changes[1]
+        )
+        + abs(
+            reset_outcome_prediction.curiosity_change
             - actual_state_changes[2]
         )
     ) / 3.0
@@ -279,6 +302,11 @@ def run_simulation_step(
         ),
 
         state_mae=outcome_state_mae,
+        reset_state_mae=reset_outcome_state_mae,
+        persistent_better_than_reset=(
+            outcome_state_mae
+            < reset_outcome_state_mae
+        ),
 
         total_loss=(
             outcome_training_result.total_loss
@@ -298,6 +326,21 @@ def run_simulation_step(
 
         final_neural_state=(
             outcome_prediction.final_neural_state
+        ),
+
+        neural_state_mean=float(
+            updated_outcome_neural_state.mean().item()
+        ),
+        neural_state_std=float(
+            updated_outcome_neural_state.std(
+                unbiased=False
+            ).item()
+        ),
+        neural_state_min=float(
+            updated_outcome_neural_state.min().item()
+        ),
+        neural_state_max=float(
+            updated_outcome_neural_state.max().item()
         ),
     )
 
@@ -391,6 +434,8 @@ def run_simulation_step(
             "event_pred=%s event_actual=%s "
             "event_correct=%s "
             "state_mae=%.3f "
+            "reset_state_mae=%.3f "
+            "persistent_better_than_reset=%s "
             "total_loss=%s "
             "state_loss=%s "
             "event_loss=%s"
@@ -407,6 +452,8 @@ def run_simulation_step(
         outcome_metrics.actual_event,
         outcome_metrics.event_correct,
         outcome_metrics.state_mae,
+        outcome_metrics.reset_state_mae,
+        outcome_metrics.persistent_better_than_reset,
 
         outcome_metrics.total_loss,
         outcome_metrics.state_loss,
@@ -419,4 +466,5 @@ def run_simulation_step(
         comparison_count,
         terminated,
         truncated,
+        updated_outcome_neural_state.detach(),
     )

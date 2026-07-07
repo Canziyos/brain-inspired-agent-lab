@@ -86,3 +86,41 @@ def test_event_indices_cover_every_event() -> None:
     assert indices == set(
         range(len(tuple(EventType)))
     )
+
+def test_recurrent_model_can_continue_from_external_state():
+    model = RateRecurrentOutcomeModel(
+        neuron_count=6,
+        neural_ticks=4,
+    )
+
+    features = torch.ones(
+        1,
+        OUTCOME_FEATURE_COUNT,
+    )
+
+    state0 = model.initial_neural_state(
+        batch_size=1,
+        device=features.device,
+        dtype=features.dtype,
+    )
+
+    changes1, logits1, state1 = model.forward_with_state(
+        features,
+        state0,
+    )
+
+    changes2, logits2, state2 = model.forward_with_state(
+        features,
+        state1,
+    )
+
+    assert state1.shape == (1, 6)
+    assert state2.shape == (1, 6)
+
+    assert changes1.shape == (1, 3)
+    assert changes2.shape == (1, 3)
+
+    assert logits1.shape[0] == 1
+    assert logits2.shape[0] == 1
+
+    assert not torch.equal(state0, state1)

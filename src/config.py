@@ -25,7 +25,7 @@ class SimulationConfig:
 
     animation_interval_ms: int = 250
 
-    save_run_outputs: bool = False
+    save_run_outputs: bool = True
     output_root: str = "outputs/runs"
     outcome_learning_rate: float = 0.003
     outcome_neuron_count: int = 24

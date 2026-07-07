@@ -209,12 +209,97 @@ class RateRecurrentOutcomeModel(nn.Module):
             )
 
         return state_changes, event_logits
+    
+    def forward_with_state(
+        self,
+        features: torch.Tensor,
+        neural_state: torch.Tensor,
+        *,
+        return_activity: bool = False,
+    ):
+        if features.ndim != 2:
+            raise ValueError(
+                "features must have shape [batch, feature]"
+            )
+
+        if neural_state.ndim != 2:
+            raise ValueError(
+                "neural_state must have shape [batch, neuron]"
+            )
+
+        if features.shape[0] != neural_state.shape[0]:
+            raise ValueError(
+                "features and neural_state must have the same batch size"
+            )
+
+        activity: list[torch.Tensor] = []
+
+        for _ in range(self.neural_ticks):
+            neural_state = self.neural_tick(features, neural_state)
+
+            if return_activity:
+                activity.append(neural_state)
+
+        state_changes = self.state_change_head(neural_state)
+        event_logits = self.event_head(neural_state)
+
+        if return_activity:
+            return (
+                state_changes,
+                event_logits,
+                neural_state,
+                torch.stack(activity, dim=1),
+            )
+
+        return state_changes, event_logits, neural_state
 
 
 def event_index(
     event: EventType,
 ) -> int:
     return EVENT_TO_INDEX[event]
+
+def predict_outcome_with_state(
+    model: RateRecurrentOutcomeModel,
+    features: tuple[float, ...],
+    neural_state: torch.Tensor,
+) -> tuple[OutcomePrediction, torch.Tensor]:
+    model.eval()
+
+    feature_tensor = torch.tensor(
+        features,
+        dtype=torch.float32,
+        device=neural_state.device,
+    ).unsqueeze(0)
+
+    with torch.no_grad():
+        (
+            state_changes,
+            event_logits,
+            updated_neural_state,
+            activity_trace,
+        ) = model.forward_with_state(
+            feature_tensor,
+            neural_state,
+            return_activity=True,
+        )
+
+        probabilities = torch.softmax(event_logits, dim=-1)
+
+    predicted_event_index = int(probabilities.argmax(dim=-1).item())
+    changes = state_changes[0]
+    final_state = updated_neural_state[0]
+
+    prediction = OutcomePrediction(
+        energy_change=float(changes[0].item()),
+        health_change=float(changes[1].item()),
+        curiosity_change=float(changes[2].item()),
+        event=EVENT_TYPES[predicted_event_index],
+        event_probabilities=tuple(float(v) for v in probabilities[0].tolist()),
+        final_neural_state=tuple(float(v) for v in final_state.tolist()),
+    )
+
+    return prediction, updated_neural_state
 
 
 def predict_outcome(
@@ -286,47 +371,41 @@ def train_outcome_model(
     if len(samples) < batch_size:
         return None
 
-    random_source = (
-        rng
-        if rng is not None
-        else random
-    )
+    random_source = rng if rng is not None else random
+    batch = random_source.sample(samples, batch_size)
 
-    batch = random_source.sample(
-        samples,
-        batch_size,
-    )
+    device = next(model.parameters()).device
 
     features = torch.tensor(
-        [
-            sample.features
-            for sample in batch
-        ],
+        [sample.features for sample in batch],
         dtype=torch.float32,
+        device=device,
+    )
+
+    neural_states = torch.tensor(
+        [sample.neural_state for sample in batch],
+        dtype=torch.float32,
+        device=device,
     )
 
     state_changes = torch.tensor(
-        [
-            sample.state_changes
-            for sample in batch
-        ],
+        [sample.state_changes for sample in batch],
         dtype=torch.float32,
+        device=device,
     )
 
     event_indices = torch.tensor(
-        [
-            sample.event_index
-            for sample in batch
-        ],
+        [sample.event_index for sample in batch],
         dtype=torch.long,
+        device=device,
     )
 
     model.train()
 
-    (
-        predicted_changes,
-        event_logits,
-    ) = model(features)
+    predicted_changes, event_logits, _ = model.forward_with_state(
+        features,
+        neural_states,
+    )
 
     state_loss = nn.functional.mse_loss(
         predicted_changes,
@@ -338,23 +417,14 @@ def train_outcome_model(
         event_indices,
     )
 
-    total_loss = (
-        state_loss
-        + event_loss
-    )
+    total_loss = state_loss + event_loss
 
     optimizer.zero_grad()
     total_loss.backward()
     optimizer.step()
 
     return OutcomeTrainingResult(
-        total_loss=float(
-            total_loss.item()
-        ),
-        state_loss=float(
-            state_loss.item()
-        ),
-        event_loss=float(
-            event_loss.item()
-        ),
+        total_loss=float(total_loss.item()),
+        state_loss=float(state_loss.item()),
+        event_loss=float(event_loss.item()),
     )

@@ -1,11 +1,15 @@
 import csv
 
 from src.diagnostics.run_output import write_steps_csv
-from src.simulation.metrics import OutcomeModelMetrics, StepMetrics
+from src.simulation.metrics import (
+    OutcomeModelMetrics,
+    StepMetrics,
+)
 
 
 def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
     output_path = tmp_path / "steps.csv"
+
     history = [
         StepMetrics(
             step=3,
@@ -42,6 +46,12 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
                 state_loss=None,
                 event_loss=None,
                 final_neural_state=(0.1, 0.2),
+                neural_state_mean=0.15,
+                neural_state_std=0.05,
+                neural_state_min=0.1,
+                neural_state_max=0.2,
+                reset_state_mae=1.5,
+                persistent_better_than_reset=True,
             ),
         )
     ]
@@ -86,8 +96,14 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
             "outcome_actual_event": "DISCOVERED_MYSTERY",
             "outcome_event_correct": "False",
             "outcome_state_mae": "1.0",
+            "outcome_reset_state_mae": "1.5",
+            "outcome_persistent_better_than_reset": "True",
             "outcome_total_loss": "",
             "outcome_state_loss": "",
             "outcome_event_loss": "",
+            "outcome_neural_state_mean": "0.15",
+            "outcome_neural_state_std": "0.05",
+            "outcome_neural_state_min": "0.1",
+            "outcome_neural_state_max": "0.2",
         }
     ]
