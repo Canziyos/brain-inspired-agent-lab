@@ -26,23 +26,26 @@ MYSTERY_TRAVEL_SCORE = 18.0
 
 def planned_goal_score(
     agent: Agent,
-    kind: GoalKind,
+    plan: GoalPlan,
 ) -> float:
+    if plan.score is not None:
+        return plan.score
+
     state = agent.snapshot()
 
-    if kind is GoalKind.FOOD:
+    if plan.kind is GoalKind.FOOD:
         return food_motivation(state)
 
-    if kind is GoalKind.MYSTERY:
+    if plan.kind is GoalKind.MYSTERY:
         return max(
             MYSTERY_TRAVEL_SCORE,
             mystery_motivation(state),
         )
 
-    if kind is GoalKind.FRONTIER:
+    if plan.kind is GoalKind.FRONTIER:
         return FRONTIER_TRAVEL_SCORE
 
-    raise ValueError(f"Unsupported goal kind: {kind!r}")
+    raise ValueError(f"Unsupported goal kind: {plan.kind!r}")
 
 
 def evaluate_observation(
@@ -122,7 +125,7 @@ def apply_goal_plan(
 
     plan_score = planned_goal_score(
         agent=agent,
-        kind=plan.kind,
+        plan=plan,
     )
 
     updated: list[ActionEvaluation] = []
