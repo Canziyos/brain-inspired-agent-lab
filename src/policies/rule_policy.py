@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from src.core.actions import Action, ActionEvaluation
 from src.core.agent import Agent
 from src.core.motivation import (
-    MEDIUM_ENERGY,
+    LOW_ENERGY,
     food_action_reason,
     food_motivation,
     mystery_motivation,
@@ -23,7 +23,8 @@ EMPTY_EXPLORE_SCORE = 15.0
 
 FRONTIER_TRAVEL_SCORE = 14.0
 MYSTERY_TRAVEL_SCORE = 18.0
-REST_ALLOWED_BELOW_ENERGY = MEDIUM_ENERGY
+REST_ALLOWED_BELOW_ENERGY = LOW_ENERGY
+PLANNED_ACTION_MIN_SCORE = 30.0
 
 
 def planned_goal_score(
@@ -48,6 +49,19 @@ def planned_goal_score(
         return FRONTIER_TRAVEL_SCORE
 
     raise ValueError(f"Unsupported goal kind: {plan.kind!r}")
+
+
+def planned_action_score(
+    agent: Agent,
+    plan: GoalPlan,
+) -> float:
+    return max(
+        planned_goal_score(
+            agent=agent,
+            plan=plan,
+        ),
+        PLANNED_ACTION_MIN_SCORE,
+    )
 
 
 def evaluate_observation(
@@ -135,7 +149,7 @@ def apply_goal_plan(
     if plan is None:
         return tuple(evaluations)
 
-    plan_score = planned_goal_score(
+    plan_score = planned_action_score(
         agent=agent,
         plan=plan,
     )
