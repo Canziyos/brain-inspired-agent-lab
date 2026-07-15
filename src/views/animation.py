@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-from src.core.world import DANGER, EMPTY, FOOD, MYSTERY
-from src.simulation.metrics import StepMetrics
+from src.core.world import CellType
+from src.telemetry.metrics import StepMetrics
 
 
 def animate_simulation(
@@ -143,7 +143,7 @@ def animate_simulation(
             metrics.grid_snapshot
         ):
             for x, cell in enumerate(row):
-                if cell != EMPTY:
+                if cell != CellType.EMPTY:
                     label = axis.text(
                         x,
                         y,
@@ -169,7 +169,7 @@ def animate_simulation(
         update,
         frames=len(history),
         interval=interval_ms,
-        repeat=True,
+        repeat=False,
         blit=False,
     )
 
@@ -184,15 +184,15 @@ def grid_to_numeric(
     grid: tuple[tuple[str, ...], ...],
 ) -> list[list[int]]:
     values = {
-        EMPTY: 0,
-        FOOD: 1,
-        DANGER: 2,
-        MYSTERY: 3,
+        CellType.EMPTY: 0,
+        CellType.FOOD: 1,
+        CellType.DANGER: 2,
+        CellType.MYSTERY: 3,
     }
 
     return [
         [
-            values.get(cell, 0)
+            values.get(CellType(cell), 0)
             for cell in row
         ]
         for row in grid

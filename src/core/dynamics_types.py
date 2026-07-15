@@ -1,20 +1,19 @@
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import StrEnum
 
 
-class EventType(Enum):
-    RESTED = auto()
-    ATE_FOOD = auto()
-    HIT_DANGER = auto()
-    DISCOVERED_MYSTERY = auto()
-    VISITED_EMPTY = auto()
-    NO_OP = auto()
-    BLOCKED = auto()
+class EventType(StrEnum):
+    RESTED = "rested"
+    ATE_FOOD = "ate_food"
+    HIT_DANGER = "hit_danger"
+    DISCOVERED_MYSTERY = "discovered_mystery"
+    VISITED_EMPTY = "visited_empty"
+    BLOCKED = "blocked"
 
 
 @dataclass(frozen=True, slots=True)
 class ActionOutcome:
-    position: tuple[int, int]
+    new_position: tuple[int, int]
     event: EventType
     energy_change: float
     health_change: float

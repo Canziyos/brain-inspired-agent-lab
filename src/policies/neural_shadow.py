@@ -1,39 +1,45 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 
-from src.core.agent import Agent
 from src.core.actions import Action, ActionEvaluation
+from src.core.agent import Agent
 from src.learning.features import encode_state_action
 from src.learning.reward_network import (
     ImmediateRewardNetwork,
     predict_reward,
 )
+from src.learning.types import FeatureVector
 
 
 @dataclass(frozen=True, slots=True)
-class ActionPrediction:
+class NetworkActionPrediction:
     action: Action
-    features: tuple[float, ...]
+    features: FeatureVector
     predicted_reward: float
 
 
-def predict_actions(
+def predict_network_actions(
     agent: Agent,
-    evaluations: list[ActionEvaluation],
+    evaluations: Sequence[ActionEvaluation],
     model: ImmediateRewardNetwork,
-) -> list[ActionPrediction]:
-    predictions: list[ActionPrediction] = []
+) -> list[NetworkActionPrediction]:
+    predictions: list[NetworkActionPrediction] = []
     agent_state = agent.snapshot()
 
     for evaluation in evaluations:
         action = evaluation.action
-        perceived_cell = agent.known_cells.get(
-            (action.target_x, action.target_y)
+        target = action.target_from(agent.position)
+
+        target_cell = (
+            agent.known_cells.get(target)
+            if action.is_move
+            else None
         )
 
         features = encode_state_action(
             agent_state=agent_state,
             action=action,
-            perceived_cell=perceived_cell,
+            target_cell=target_cell,
         )
 
         predicted_reward = predict_reward(
@@ -42,7 +48,7 @@ def predict_actions(
         )
 
         predictions.append(
-            ActionPrediction(
+            NetworkActionPrediction(
                 action=action,
                 features=features,
                 predicted_reward=predicted_reward,
@@ -53,8 +59,8 @@ def predict_actions(
 
 
 def choose_network_action(
-    predictions: list[ActionPrediction],
-) -> ActionPrediction:
+    predictions: Sequence[NetworkActionPrediction],
+) -> NetworkActionPrediction:
     if not predictions:
         raise ValueError(
             "Cannot choose from empty network predictions"
@@ -66,23 +72,12 @@ def choose_network_action(
     )
 
 
-def actions_match(
-    first: Action,
-    second: Action,
-) -> bool:
-    return (
-        first.kind == second.kind
-        and first.target_x == second.target_x
-        and first.target_y == second.target_y
-    )
-
-
 def find_action_prediction(
     chosen_action: Action,
-    predictions: list[ActionPrediction],
-) -> ActionPrediction:
+    predictions: Sequence[NetworkActionPrediction],
+) -> NetworkActionPrediction:
     for prediction in predictions:
-        if prediction.action == chosen_action:
+        if prediction.action is chosen_action:
             return prediction
 
     raise ValueError(

@@ -1,12 +1,7 @@
 from src.core.actions import Action, ActionEvaluation
 from src.core.agent import Agent
 from src.core.perception import Observation
-from src.core.world import (
-    DANGER,
-    EMPTY,
-    FOOD,
-    MYSTERY,
-)
+from src.core.world import CellType
 from src.policies.rule_policy import (
     choose_action,
     evaluate_actions,
@@ -24,24 +19,22 @@ def test_evaluate_actions_scores_observed_options() -> None:
     evaluations = evaluate_actions(
         agent,
         [
-            Observation(2, 1, FOOD),
-            Observation(1, 2, DANGER),
-            Observation(0, 1, MYSTERY),
-            Observation(1, 0, EMPTY),
+            Observation(2, 1, CellType.FOOD),
+            Observation(1, 2, CellType.DANGER),
+            Observation(0, 1, CellType.MYSTERY),
+            Observation(1, 0, CellType.EMPTY),
         ],
     )
 
     by_target = {
         (
-            evaluation.action.kind,
-            evaluation.action.target_x,
-            evaluation.action.target_y,
+            evaluation.action,
         ): evaluation
         for evaluation in evaluations
     }
 
-    assert by_target[("rest", 1, 1)].score == 25.0
-    assert by_target[("move", 2, 1)].score == 70.0
-    assert by_target[("move", 0, 1)].score == 24.0
-    assert by_target[("move", 1, 0)].score == 15.0
-    assert ("move", 1, 2) not in by_target
+    assert by_target[(Action.REST,)].policy_score == 25.0
+    assert by_target[(Action.MOVE_EAST,)].policy_score == 70.0
+    assert by_target[(Action.MOVE_WEST,)].policy_score == 24.0
+    assert by_target[(Action.MOVE_NORTH,)].policy_score == 15.0
+    assert (Action.MOVE_SOUTH,) not in by_target

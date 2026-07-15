@@ -1,20 +1,34 @@
-from src.config import SimulationConfig
+from dataclasses import replace
+
+from src.configs import SimulationConfig
 from src.simulation.runner import run_simulation
 
 
 def make_config() -> SimulationConfig:
-    return SimulationConfig(
-        world_width=16,
-        world_height=12,
-        food_count=5,
-        danger_count=8,
-        mystery_count=10,
-        max_steps=20,
-        random_seed=7,
-        torch_seed=7,
-        verbose=False,
-        show_animation=False,
-        show_plots=False,
+    base_config = SimulationConfig()
+    return replace(
+        base_config,
+        world=replace(
+            base_config.world,
+            width=16,
+            height=12,
+            food_count=5,
+            danger_count=8,
+            mystery_count=10,
+        ),
+        runtime=replace(
+            base_config.runtime,
+            max_steps=20,
+            random_seed=7,
+            torch_seed=7,
+            verbose=False,
+        ),
+        output=replace(
+            base_config.output,
+            show_animation=False,
+            show_plots=False,
+            save_run_outputs=False,
+        ),
     )
 
 
@@ -52,8 +66,8 @@ def test_simulation_metrics_remain_valid() -> None:
     history = run_simulation(config)
 
     assert all(
-        0 <= item.position[0] < config.world_width
-        and 0 <= item.position[1] < config.world_height
+        0 <= item.position[0] < config.world.width
+        and 0 <= item.position[1] < config.world.height
         for item in history
     )
 

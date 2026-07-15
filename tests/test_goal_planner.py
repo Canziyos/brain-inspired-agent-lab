@@ -1,5 +1,5 @@
 from src.core.agent import Agent
-from src.core.world import EMPTY, FOOD, MYSTERY
+from src.core.world import CellType
 from src.planning.goal_planner import (
     GoalKind,
     is_task_complete,
@@ -16,9 +16,9 @@ def test_low_energy_agent_prioritizes_known_food() -> None:
 
     agent.known_cells.update(
         {
-            (0, 0): EMPTY,
-            (1, 0): FOOD,
-            (0, 1): MYSTERY,
+            (0, 0): CellType.EMPTY,
+            (1, 0): CellType.FOOD,
+            (0, 1): CellType.MYSTERY,
         }
     )
 
@@ -43,9 +43,9 @@ def test_high_energy_agent_prioritizes_mystery() -> None:
 
     agent.known_cells.update(
         {
-            (0, 0): EMPTY,
-            (1, 0): FOOD,
-            (0, 1): MYSTERY,
+            (0, 0): CellType.EMPTY,
+            (1, 0): CellType.FOOD,
+            (0, 1): CellType.MYSTERY,
         }
     )
 
@@ -65,8 +65,8 @@ def test_frontier_is_selected_without_known_objects() -> None:
 
     agent.known_cells.update(
         {
-            (0, 0): EMPTY,
-            (1, 0): EMPTY,
+            (0, 0): CellType.EMPTY,
+            (1, 0): CellType.EMPTY,
         }
     )
 
@@ -87,8 +87,8 @@ def test_task_is_complete_when_no_reachable_goals_remain() -> None:
 
     agent.known_cells.update(
         {
-            (0, 0): EMPTY,
-            (1, 0): EMPTY,
+            (0, 0): CellType.EMPTY,
+            (1, 0): CellType.EMPTY,
         }
     )
 

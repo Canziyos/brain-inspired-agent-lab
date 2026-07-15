@@ -1,21 +1,28 @@
-from src.config import SimulationConfig
-from src.envs.grid_world_env import (
+from dataclasses import replace
+
+from src.configs import SimulationConfig
+from src.envs.grid_world_actions import (
     ACTION_REST,
-    BabyViceGridEnv,
 )
+from src.envs.grid_world_env import BabyViceGridEnv
 
 
 def test_environment_terminates_on_goal_completion() -> None:
-    config = SimulationConfig(
-        world_width=2,
-        world_height=1,
-        food_count=0,
-        danger_count=0,
-        mystery_count=0,
-        max_steps=10,
-        verbose=False,
-        show_animation=False,
-        show_plots=False,
+    base_config = SimulationConfig()
+    config = replace(
+        base_config,
+        world=replace(
+            base_config.world,
+            width=2,
+            height=1,
+            food_count=0,
+            danger_count=0,
+            mystery_count=0,
+        ),
+        runtime=replace(
+            base_config.runtime,
+            max_steps=10,
+        ),
     )
 
     env = BabyViceGridEnv(config=config)

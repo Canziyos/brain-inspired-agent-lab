@@ -1,7 +1,16 @@
 from dataclasses import dataclass
+from typing import TypeAlias
+
+from src.core.actions import Action
+from src.core.dynamics_types import EventType
+from src.core.world import CellType
 
 
-@dataclass(slots=True)
+Position: TypeAlias = tuple[int, int]
+GridSnapshot: TypeAlias = tuple[tuple[CellType, ...], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class OutcomeModelMetrics:
     predicted_energy_change: float
     actual_energy_change: float
@@ -12,8 +21,8 @@ class OutcomeModelMetrics:
     predicted_curiosity_change: float
     actual_curiosity_change: float
 
-    predicted_event: str
-    actual_event: str
+    predicted_event: EventType
+    actual_event: EventType
     event_correct: bool
 
     state_mae: float
@@ -24,17 +33,16 @@ class OutcomeModelMetrics:
     state_loss: float | None
     event_loss: float | None
 
-    final_neural_state: tuple[float, ...]
     neural_state_mean: float
     neural_state_std: float
     neural_state_min: float
     neural_state_max: float
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class StepMetrics:
     step: int
-    position: tuple[int, int]
+    position: Position
 
     energy: float
     health: float
@@ -44,19 +52,30 @@ class StepMetrics:
     predicted_reward: float
     loss: float | None
 
-    event: str
+    event: EventType
     visited_count: int
     known_cell_count: int
 
     choices_agree: bool
 
-    grid_snapshot: tuple[tuple[str, ...], ...]
+    grid_snapshot: GridSnapshot
 
-    rule_action: str
+    rule_action: Action
     action_reason: str
-    network_action: str
+    network_action: Action
+
+    imagination_action: Action
+
+    imagination_expected_reward: float
+    imagination_utility: float
+
+    rule_imagined_reward: float
+    rule_imagined_utility: float
+
+    imagination_agrees: bool
 
     termination_reason: str | None
     goal_kind: str | None
-    goal_target: tuple[int, int] | None
-    outcome_model: OutcomeModelMetrics
+    goal_target: Position | None
+
+    outcome_model: OutcomeModelMetrics | None

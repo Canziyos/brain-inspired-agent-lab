@@ -1,21 +1,24 @@
-from src.core.agent import Experience
+from typing import Final
+
 from src.core.dynamics_types import ActionOutcome, EventType
 
 
-def calculate_reward(
-    outcome: Experience | ActionOutcome,
-) -> float:
-    reward = (
+HEALTH_REWARD_WEIGHT: Final[float] = 3.0
+
+EVENT_REWARD_ADJUSTMENTS: Final[dict[EventType, float]] = {
+    EventType.DISCOVERED_MYSTERY: 8.0,
+    EventType.VISITED_EMPTY: -1.0,
+    EventType.BLOCKED: -3.0,
+}
+
+
+def event_reward_adjustment(event: EventType) -> float:
+    return EVENT_REWARD_ADJUSTMENTS.get(event, 0.0)
+
+
+def calculate_reward(outcome: ActionOutcome) -> float:
+    return (
         outcome.energy_change
-        + 3.0 * outcome.health_change
+        + HEALTH_REWARD_WEIGHT * outcome.health_change
+        + event_reward_adjustment(outcome.event)
     )
-
-    if outcome.event == EventType.DISCOVERED_MYSTERY:
-        reward += 8.0
-
-    elif outcome.event == EventType.VISITED_EMPTY:
-        reward -= 1.0
-    elif outcome.event == EventType.BLOCKED:
-        reward -= 3.0
-
-    return reward

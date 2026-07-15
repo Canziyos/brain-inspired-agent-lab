@@ -1,14 +1,22 @@
+from collections.abc import Collection
 from dataclasses import dataclass
 from enum import Enum
 
 from src.core.agent import Agent
-from src.core.world import FOOD, MYSTERY
+from src.core.motivation import (
+    food_motivation,
+    mystery_motivation,
+)
+from src.core.world import CellType
 from src.planning.frontier_planner import (
     Position,
     find_frontiers,
     known_traversable_cells,
     shortest_path,
 )
+
+
+FRONTIER_MOTIVATION_SCORE = 14.0
 
 
 class GoalKind(str, Enum):
@@ -34,31 +42,40 @@ class GoalPlan:
         return self.path[1]
 
 
+@dataclass(frozen=True, slots=True)
+class GoalCandidate:
+    kind: GoalKind
+    targets: frozenset[Position]
+    priority: float
+
+
 def known_object_targets(
     agent: Agent,
-    cell_type: str,
-) -> set[Position]:
-    return {
+    cell_type: CellType,
+) -> frozenset[Position]:
+    return frozenset(
         position
         for position, known_cell in agent.known_cells.items()
-        if known_cell == cell_type
-    }
+        if known_cell is cell_type
+    )
 
 
 def build_plan(
     kind: GoalKind,
-    targets: set[Position],
+    targets: Collection[Position],
     agent: Agent,
     traversable: set[Position],
     width: int,
     height: int,
 ) -> GoalPlan | None:
-    if not targets:
+    target_set = set(targets)
+
+    if not target_set:
         return None
 
     path = shortest_path(
-        start=(agent.x, agent.y),
-        goals=targets,
+        start=agent.position,
+        goals=target_set,
         traversable=traversable,
         width=width,
         height=height,
@@ -74,6 +91,62 @@ def build_plan(
     )
 
 
+def goal_candidates(
+    agent: Agent,
+    width: int,
+    height: int,
+) -> tuple[GoalCandidate, ...]:
+    state = agent.snapshot()
+
+    return (
+        GoalCandidate(
+            kind=GoalKind.FOOD,
+            targets=known_object_targets(
+                agent,
+                CellType.FOOD,
+            ),
+            priority=food_motivation(state),
+        ),
+        GoalCandidate(
+            kind=GoalKind.MYSTERY,
+            targets=known_object_targets(
+                agent,
+                CellType.MYSTERY,
+            ),
+            priority=mystery_motivation(state),
+        ),
+        GoalCandidate(
+            kind=GoalKind.FRONTIER,
+            targets=frozenset(
+                find_frontiers(
+                    agent,
+                    width,
+                    height,
+                )
+            ),
+            priority=FRONTIER_MOTIVATION_SCORE,
+        ),
+    )
+
+
+def ranked_goal_candidates(
+    agent: Agent,
+    width: int,
+    height: int,
+) -> tuple[GoalCandidate, ...]:
+    return tuple(
+        sorted(
+            goal_candidates(
+                agent,
+                width,
+                height,
+            ),
+            key=lambda candidate: candidate.priority,
+            reverse=True,
+        )
+    )
+
+
 def select_goal_plan(
     agent: Agent,
     width: int,
@@ -81,40 +154,14 @@ def select_goal_plan(
 ) -> GoalPlan | None:
     traversable = known_traversable_cells(agent)
 
-    food_targets = known_object_targets(
-        agent,
-        FOOD,
-    )
-
-    mystery_targets = known_object_targets(
-        agent,
-        MYSTERY,
-    )
-
-    frontier_targets = find_frontiers(
+    for candidate in ranked_goal_candidates(
         agent,
         width,
         height,
-    )
-
-    # Food becomes urgent when energy is no longer high.
-    if agent.energy < 85.0:
-        priority_groups = (
-            (GoalKind.FOOD, food_targets),
-            (GoalKind.MYSTERY, mystery_targets),
-            (GoalKind.FRONTIER, frontier_targets),
-        )
-    else:
-        priority_groups = (
-            (GoalKind.MYSTERY, mystery_targets),
-            (GoalKind.FOOD, food_targets),
-            (GoalKind.FRONTIER, frontier_targets),
-        )
-
-    for kind, targets in priority_groups:
+    ):
         plan = build_plan(
-            kind=kind,
-            targets=targets,
+            kind=candidate.kind,
+            targets=candidate.targets,
             agent=agent,
             traversable=traversable,
             width=width,
@@ -132,27 +179,11 @@ def has_reachable_goal(
     width: int,
     height: int,
 ) -> bool:
-    traversable = known_traversable_cells(agent)
-
-    goal_groups = (
-        known_object_targets(agent, FOOD),
-        known_object_targets(agent, MYSTERY),
-        find_frontiers(agent, width, height),
-    )
-
-    for targets in goal_groups:
-        path = shortest_path(
-            start=(agent.x, agent.y),
-            goals=targets,
-            traversable=traversable,
-            width=width,
-            height=height,
-        )
-
-        if path is not None:
-            return True
-
-    return False
+    return select_goal_plan(
+        agent=agent,
+        width=width,
+        height=height,
+    ) is not None
 
 
 def is_task_complete(
