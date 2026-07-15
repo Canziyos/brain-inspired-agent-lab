@@ -1,9 +1,12 @@
+from dataclasses import replace
+
 import numpy as np
 
-from src.config import SimulationConfig
+from src.configs import SimulationConfig
 from src.core.actions import Action
+from src.core.world import CellType
 from src.envs import BabyViceGridEnv
-from src.envs.grid_world_env import (
+from src.envs.grid_world_actions import (
     ACTION_DOWN,
     ACTION_REST,
     ACTION_RIGHT,
@@ -12,12 +15,14 @@ from src.envs.grid_world_env import (
 
 
 def make_env(render_mode=None) -> BabyViceGridEnv:
+    base_config = SimulationConfig()
     return BabyViceGridEnv(
-        config=SimulationConfig(
-            max_steps=3,
-            verbose=False,
-            show_animation=False,
-            show_plots=False,
+        config=replace(
+            base_config,
+            runtime=replace(
+                base_config.runtime,
+                max_steps=3,
+            ),
         ),
         render_mode=render_mode,
         cell_size=8,
@@ -37,7 +42,7 @@ def test_reset_is_seed_deterministic() -> None:
         observation_b["position"],
     )
     assert info_a["grid"] == info_b["grid"]
-    assert info_a["grid"][0][0] == "."
+    assert info_a["grid"][0][0] is CellType.EMPTY
     assert info_a["observations"] == info_b["observations"]
 
 
@@ -74,8 +79,8 @@ def test_rgb_array_render_is_headless() -> None:
     frame = env.render()
 
     assert frame.shape == (
-        env.config.world_height * env.cell_size,
-        env.config.world_width * env.cell_size,
+        env.config.world.height * env.cell_size,
+        env.config.world.width * env.cell_size,
         3,
     )
     assert frame.dtype == np.uint8
@@ -86,13 +91,13 @@ def test_rgb_array_render_is_headless() -> None:
 def test_physical_action_maps_to_discrete_actuator() -> None:
     assert action_to_discrete(
         (0, 0),
-        Action("rest", 0, 0),
+        Action.REST,
     ) == ACTION_REST
     assert action_to_discrete(
         (0, 0),
-        Action("move", 1, 0),
+        Action.MOVE_EAST,
     ) == ACTION_RIGHT
     assert action_to_discrete(
         (0, 0),
-        Action("move", 0, 1),
+        Action.MOVE_SOUTH,
     ) == ACTION_DOWN

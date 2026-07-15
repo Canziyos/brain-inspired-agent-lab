@@ -1,11 +1,17 @@
 from dataclasses import dataclass
+from typing import TypeAlias
+
+from src.core.world import CellType
+
+
+Position: TypeAlias = tuple[int, int]
 
 
 @dataclass(frozen=True, slots=True)
 class Observation:
     x: int
     y: int
-    cell: str
+    cell: CellType
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,4 +21,4 @@ class AgentState:
     energy: float
     health: float
     curiosity: float
-    visited: frozenset[tuple[int, int]]
+    visited: frozenset[Position]

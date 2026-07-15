@@ -1,6 +1,6 @@
 from src.core.actions import Action
 from src.core.agent import Agent
-from src.core.world import FOOD
+from src.core.world import CellType
 from src.learning.features import (
     STATE_ACTION_FEATURE_COUNT,
     encode_state_action,
@@ -8,11 +8,10 @@ from src.learning.features import (
 
 
 def make_action(name: str, x: int, y: int) -> Action:
-    return Action(
-        kind=name,
-        target_x=x,
-        target_y=y,
-    )
+    if name == "rest":
+        return Action.REST
+
+    return Action.from_positions((0, 0), (x, y))
 
 
 def test_encode_state_action_marks_food_target() -> None:
@@ -27,7 +26,7 @@ def test_encode_state_action_marks_food_target() -> None:
     features = encode_state_action(
         agent_state=agent.snapshot(),
         action=make_action("move", 1, 0),
-        perceived_cell=FOOD,
+        target_cell=CellType.FOOD,
     )
 
     assert len(features) == STATE_ACTION_FEATURE_COUNT
@@ -41,6 +40,7 @@ def test_encode_state_action_marks_food_target() -> None:
         0.0,
         0.0,
         0.0,
+        0.0,
     )
 
 
@@ -50,8 +50,8 @@ def test_encode_state_action_marks_rest_and_current_cell_visited() -> None:
     features = encode_state_action(
         agent_state=agent.snapshot(),
         action=make_action("rest", 0, 0),
-        perceived_cell=None,
+        target_cell=None,
     )
 
     assert features[3] == 1.0
-    assert features[-1] == 1.0
+    assert features[-1] == 0.0

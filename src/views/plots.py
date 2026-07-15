@@ -2,8 +2,8 @@ from statistics import mean
 
 import matplotlib.pyplot as plt
 
-from src.core.world import DANGER, EMPTY, FOOD, MYSTERY, World
-from src.simulation.metrics import StepMetrics
+from src.core.world import CellType, World
+from src.telemetry.metrics import StepMetrics
 
 
 def plot_simulation_summary(
@@ -137,10 +137,10 @@ def plot_final_world(
     numeric_grid = []
 
     symbol_values = {
-        EMPTY: 0,
-        FOOD: 1,
-        DANGER: 2,
-        MYSTERY: 3,
+        CellType.EMPTY: 0,
+        CellType.FOOD: 1,
+        CellType.DANGER: 2,
+        CellType.MYSTERY: 3,
     }
 
     for row in world.grid:
@@ -185,7 +185,7 @@ def plot_final_world(
 
     for y, row in enumerate(world.grid):
         for x, cell in enumerate(row):
-            if cell != EMPTY:
+            if cell is not CellType.EMPTY:
                 axis.text(
                     x,
                     y,

@@ -3,15 +3,18 @@ import torch
 from src.core.actions import Action
 from src.core.dynamics_types import EventType
 from src.core.perception import AgentState
-from src.core.world import FOOD
+from src.core.world import CellType
 from src.learning.outcome_features import (
     OUTCOME_FEATURE_COUNT,
     encode_outcome_features,
 )
-from src.learning.outcome_model import (
+from src.learning.outcome import (
     RateRecurrentOutcomeModel,
     event_index,
+    replay_neural_state,
+    train_outcome_model,
 )
+from src.learning.samples import TransitionTrainingSample
 
 
 def test_outcome_features_encode_direction_and_cell() -> None:
@@ -26,24 +29,20 @@ def test_outcome_features_encode_direction_and_cell() -> None:
 
     features = encode_outcome_features(
         agent_state=state,
-        action=Action(
-            kind="move",
-            target_x=3,
-            target_y=3,
-        ),
-        perceived_cell=FOOD,
+        action=Action.MOVE_EAST,
+        target_cell=CellType.FOOD,
     )
 
     assert len(features) == OUTCOME_FEATURE_COUNT
 
-    # Right action.
-    assert features[5] == 1.0
+    # East action.
+    assert features[6] == 1.0
 
     # Food target.
-    assert features[10] == 1.0
+    assert features[13] == 1.0
 
 
-def test_recurrent_model_exposes_activity_over_ticks() -> None:
+def test_recurrent_model_predicts_from_zero_state() -> None:
     model = RateRecurrentOutcomeModel(
         neuron_count=6,
         neural_ticks=4,
@@ -54,13 +53,8 @@ def test_recurrent_model_exposes_activity_over_ticks() -> None:
         OUTCOME_FEATURE_COUNT,
     )
 
-    (
-        changes,
-        logits,
-        activity,
-    ) = model(
+    changes, logits = model(
         features,
-        return_activity=True,
     )
 
     assert changes.shape == (2, 3)
@@ -70,11 +64,6 @@ def test_recurrent_model_exposes_activity_over_ticks() -> None:
         len(tuple(EventType)),
     )
 
-    assert activity.shape == (
-        2,
-        4,
-        6,
-    )
 
 
 def test_event_indices_cover_every_event() -> None:
@@ -124,3 +113,47 @@ def test_recurrent_model_can_continue_from_external_state():
     assert logits2.shape[0] == 1
 
     assert not torch.equal(state0, state1)
+
+def test_sequence_training_and_state_replay() -> None:
+    model = RateRecurrentOutcomeModel(
+        neuron_count=6,
+        neural_ticks=2,
+    )
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=0.001,
+    )
+
+    samples = [
+        TransitionTrainingSample(
+            features=tuple(
+                float(index == step % OUTCOME_FEATURE_COUNT)
+                for index in range(OUTCOME_FEATURE_COUNT)
+            ),
+            state_delta=(-2.0, 0.0, 0.0),
+            event_index=event_index(
+                EventType.VISITED_EMPTY
+            ),
+        )
+        for step in range(5)
+    ]
+
+    result = train_outcome_model(
+        model=model,
+        optimizer=optimizer,
+        samples=samples,
+        sequence_length=3,
+        batch_size=2,
+    )
+
+    assert result is not None
+
+    replayed_state = replay_neural_state(
+        model=model,
+        samples=samples,
+        sequence_length=3,
+        device=torch.device("cpu"),
+        dtype=torch.float32,
+    )
+
+    assert replayed_state.shape == (1, 6)
