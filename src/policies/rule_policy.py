@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from src.core.actions import Action, ActionEvaluation
 from src.core.agent import Agent
 from src.core.motivation import (
+    MEDIUM_ENERGY,
     food_action_reason,
     food_motivation,
     mystery_motivation,
@@ -22,6 +23,7 @@ EMPTY_EXPLORE_SCORE = 15.0
 
 FRONTIER_TRAVEL_SCORE = 14.0
 MYSTERY_TRAVEL_SCORE = 18.0
+REST_ALLOWED_BELOW_ENERGY = MEDIUM_ENERGY
 
 
 def planned_goal_score(
@@ -104,6 +106,16 @@ def rest_evaluation(agent: Agent) -> ActionEvaluation:
     )
 
 
+def should_consider_rest(
+    agent: Agent,
+    movement_evaluations: Sequence[ActionEvaluation],
+) -> bool:
+    if not movement_evaluations:
+        return True
+
+    return agent.energy < REST_ALLOWED_BELOW_ENERGY
+
+
 def planned_action_matches(
     agent: Agent,
     action: Action,
@@ -160,9 +172,7 @@ def evaluate_actions(
     observations: Sequence[Observation],
     plan: GoalPlan | None = None,
 ) -> tuple[ActionEvaluation, ...]:
-    evaluations: list[ActionEvaluation] = [
-        rest_evaluation(agent)
-    ]
+    movement_evaluations: list[ActionEvaluation] = []
 
     for observation in observations:
         evaluation = evaluate_observation(
@@ -171,7 +181,17 @@ def evaluate_actions(
         )
 
         if evaluation is not None:
-            evaluations.append(evaluation)
+            movement_evaluations.append(evaluation)
+
+    evaluations: list[ActionEvaluation] = []
+
+    if should_consider_rest(
+        agent=agent,
+        movement_evaluations=movement_evaluations,
+    ):
+        evaluations.append(rest_evaluation(agent))
+
+    evaluations.extend(movement_evaluations)
 
     return apply_goal_plan(
         agent=agent,
