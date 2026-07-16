@@ -65,6 +65,7 @@ def test_no_episodes_produces_no_advice() -> None:
 
     assert advice == NO_EPISODIC_ADVICE
     assert not advice.has_advice
+    assert not advice.is_usable
 
 
 def test_episodic_advisor_prefers_action_with_better_memory() -> None:
@@ -83,10 +84,37 @@ def test_episodic_advisor_prefers_action_with_better_memory() -> None:
     )
 
     assert advice.action is Action.MOVE_NORTH
+    assert advice.raw_expected_reward > 0.0
     assert advice.expected_reward > 0.0
+    assert advice.expected_reward < advice.raw_expected_reward
     assert advice.match_count == 2
     assert advice.confidence > 0.0
     assert advice.has_advice
+    assert not advice.is_usable
+    assert "low_match_count" in advice.reliability_reason
+
+
+def test_episodic_advisor_marks_enough_evidence_as_usable() -> None:
+    agent = Agent(x=1, y=1, energy=50.0, curiosity=20.0)
+
+    advice = advise_from_episodes(
+        agent=agent,
+        plan=plan(),
+        evaluations=evaluations(),
+        episodes=(
+            episode(Action.MOVE_EAST, reward=-2.0),
+            episode(Action.MOVE_EAST, reward=-1.0),
+            episode(Action.MOVE_NORTH, reward=3.0),
+            episode(Action.MOVE_NORTH, reward=2.0),
+            episode(Action.MOVE_NORTH, reward=2.5),
+            episode(Action.MOVE_NORTH, reward=1.5),
+        ),
+    )
+
+    assert advice.action is Action.MOVE_NORTH
+    assert advice.is_usable
+    assert advice.reliability_reason == "usable"
+    assert advice.reliability >= 0.35
 
 
 def test_episodic_advisor_reports_danger_risk() -> None:
@@ -131,3 +159,27 @@ def test_episodic_advisor_ignores_actions_not_currently_available() -> None:
 
     assert advice.action is Action.MOVE_EAST
     assert advice.expected_reward < 0.0
+
+
+def test_rare_food_reward_is_dampened_until_repeated() -> None:
+    agent = Agent(x=1, y=1, energy=50.0, curiosity=20.0)
+
+    advice = advise_from_episodes(
+        agent=agent,
+        plan=plan(),
+        evaluations=evaluations(),
+        episodes=(
+            episode(
+                Action.MOVE_EAST,
+                reward=15.0,
+                event=EventType.ATE_FOOD,
+            ),
+            episode(Action.MOVE_NORTH, reward=1.0),
+            episode(Action.MOVE_NORTH, reward=1.0),
+            episode(Action.MOVE_NORTH, reward=1.0),
+        ),
+    )
+
+    assert advice.has_advice
+    assert advice.expected_reward < advice.raw_expected_reward
+    assert "rare_reward_event_dampened" in advice.reliability_reason
