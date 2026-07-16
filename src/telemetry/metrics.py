@@ -89,6 +89,13 @@ class StepMetrics:
     episodic_reliability_reason: str
     episodic_rationale: str
 
+    episodic_prior_episode_count: int
+    episodic_same_run_episode_count: int
+    episodic_prior_action: Action | None
+    episodic_prior_is_usable: bool
+    episodic_prior_agrees_with_rule: bool
+    episodic_prior_agrees_with_imagination: bool
+
     termination_reason: str | None
     goal_kind: str | None
     goal_target: Position | None
