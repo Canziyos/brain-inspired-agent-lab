@@ -6,7 +6,8 @@ from src.diagnostics.csv_values import enum_csv, optional_csv
 from src.diagnostics.outcome_csv import outcome_metrics_to_csv_row
 from src.diagnostics.step_csv_schema import STEP_CSV_FIELDNAMES
 from src.simulation.step_action_text import format_action
-from src.telemetry.metrics import StepMetrics
+from src.telemetry.metrics import Position, StepMetrics
+
 
 
 def write_steps_csv(
@@ -34,12 +35,16 @@ def write_steps_csv(
             writer.writerow(step_metrics_to_csv_row(metrics))
 
 
-def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
-    goal_target_x: int | str = ""
-    goal_target_y: int | str = ""
 
-    if metrics.goal_target is not None:
-        goal_target_x, goal_target_y = metrics.goal_target
+def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
+    goal_target_x, goal_target_y = position_to_csv(metrics.goal_target)
+    food_x, food_y = position_to_csv(metrics.memory_last_food_position)
+    mystery_x, mystery_y = position_to_csv(
+        metrics.memory_last_mystery_position
+    )
+    danger_x, danger_y = position_to_csv(
+        metrics.memory_last_danger_position
+    )
 
     row: dict[str, Any] = {
         "step": metrics.step,
@@ -57,6 +62,70 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
         "goal_kind": optional_csv(metrics.goal_kind),
         "goal_target_x": goal_target_x,
         "goal_target_y": goal_target_y,
+        "memory_goal_id": optional_csv(metrics.memory_goal_id),
+        "memory_goal_age": metrics.memory_goal_age,
+        "memory_goal_switch_count": metrics.memory_goal_switch_count,
+        "memory_target_switch_count": metrics.memory_target_switch_count,
+        "memory_frontier_target_switch_count": (
+            metrics.memory_frontier_target_switch_count
+        ),
+        "memory_frontier_semantic_switch_count": (
+            metrics.memory_frontier_semantic_switch_count
+        ),
+        "memory_recent_revisit_count": (
+            metrics.memory_recent_revisit_count
+        ),
+        "memory_stuck_counter": metrics.memory_stuck_counter,
+        "memory_recent_rest_count": metrics.memory_recent_rest_count,
+        "memory_energy_trend": metrics.memory_energy_trend,
+        "memory_last_food_x": food_x,
+        "memory_last_food_y": food_y,
+        "memory_last_mystery_x": mystery_x,
+        "memory_last_mystery_y": mystery_y,
+        "memory_last_danger_x": danger_x,
+        "memory_last_danger_y": danger_y,
+        "coverage_total_world_cells": (
+            metrics.coverage_total_world_cells
+        ),
+        "coverage_seen_cell_count": (
+            metrics.coverage_seen_cell_count
+        ),
+        "coverage_visited_cell_count": (
+            metrics.coverage_visited_cell_count
+        ),
+        "coverage_unseen_cell_count": (
+            metrics.coverage_unseen_cell_count
+        ),
+        "coverage_seen_ratio": metrics.coverage_seen_ratio,
+        "coverage_visited_ratio": metrics.coverage_visited_ratio,
+        "coverage_frontier_count": metrics.coverage_frontier_count,
+        "coverage_reachable_frontier_count": (
+            metrics.coverage_reachable_frontier_count
+        ),
+        "coverage_unreachable_frontier_count": (
+            metrics.coverage_unreachable_frontier_count
+        ),
+        "coverage_frontier_cluster_count": (
+            metrics.coverage_frontier_cluster_count
+        ),
+        "coverage_reachable_frontier_cluster_count": (
+            metrics.coverage_reachable_frontier_cluster_count
+        ),
+        "coverage_current_frontier_cluster_id": optional_csv(
+            metrics.coverage_current_frontier_cluster_id
+        ),
+        "coverage_newly_seen_count": (
+            metrics.coverage_newly_seen_count
+        ),
+        "coverage_newly_visited_count": (
+            metrics.coverage_newly_visited_count
+        ),
+        "coverage_first_full_seen_step": optional_csv(
+            metrics.coverage_first_full_seen_step
+        ),
+        "coverage_first_full_visited_step": optional_csv(
+            metrics.coverage_first_full_visited_step
+        ),
         "rule_action": format_action(metrics.rule_action),
         "action_reason": metrics.action_reason,
         "network_action": format_action(metrics.network_action),
@@ -77,3 +146,13 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
     row.update(outcome_metrics_to_csv_row(metrics.outcome_model))
 
     return row
+
+
+
+def position_to_csv(
+    position: Position | None,
+) -> tuple[int | str, int | str]:
+    if position is None:
+        return "", ""
+
+    return position

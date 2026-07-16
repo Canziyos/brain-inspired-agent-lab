@@ -15,6 +15,8 @@ from src.learning.samples import (
     RewardTrainingSample,
     TransitionTrainingSample,
 )
+from src.memory.episode_trace import EpisodicTrace
+from src.memory.working_memory import WorkingMemory
 
 
 @dataclass(slots=True)
@@ -29,6 +31,9 @@ class SimulationSession:
     outcome_optimizer: torch.optim.Optimizer
     outcome_samples: list[TransitionTrainingSample]
     outcome_neural_state: torch.Tensor
+
+    working_memory: WorkingMemory
+    episodic_trace: EpisodicTrace
 
     policy_rng: random.Random
     reward_training_rng: random.Random
@@ -80,6 +85,8 @@ def create_simulation_session(
         outcome_optimizer=outcome_optimizer,
         outcome_samples=[],
         outcome_neural_state=outcome_neural_state,
+        working_memory=WorkingMemory(),
+        episodic_trace=EpisodicTrace(),
         policy_rng=policy_rng,
         reward_training_rng=reward_training_rng,
         outcome_training_rng=outcome_training_rng,

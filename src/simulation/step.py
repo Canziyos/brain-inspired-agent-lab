@@ -11,6 +11,11 @@ from src.learning.samples import (
     RewardTrainingSample,
     TransitionTrainingSample,
 )
+from src.memory.episode_trace import (
+    EpisodicTrace,
+    build_episode,
+)
+from src.memory.working_memory import WorkingMemory
 from src.simulation.outcome_diagnostics import (
     build_outcome_model_metrics,
     predict_from_reset_state,
@@ -44,6 +49,9 @@ def run_simulation_step(
     outcome_optimizer: torch.optim.Optimizer,
     outcome_samples: list[TransitionTrainingSample],
 
+    working_memory: WorkingMemory,
+    episodic_trace: EpisodicTrace,
+
     policy_rng: random.Random,
     training_rng: random.Random,
     outcome_training_rng: random.Random,
@@ -58,6 +66,13 @@ def run_simulation_step(
     agent = env.agent
     world = env.world
 
+    position_before = agent.position
+    state_before = (
+        float(agent.energy),
+        float(agent.health),
+        float(agent.curiosity),
+    )
+
     decision = choose_step_decision(
         agent=agent,
         world=world,
@@ -70,6 +85,7 @@ def run_simulation_step(
             config.imagination.reward_weight
         ),
         policy_rng=policy_rng,
+        working_memory=working_memory,
     )
 
     reset_outcome_prediction = predict_from_reset_state(
@@ -82,6 +98,41 @@ def run_simulation_step(
         env=env,
         agent=agent,
         action=decision.rule_choice.action,
+    )
+
+    working_memory.record_step(
+        agent=agent,
+        action=decision.rule_choice.action,
+        reward=execution.reward,
+        event=execution.event,
+    )
+    working_memory.update_coverage(
+        step=step,
+        agent=agent,
+        width=config.world.width,
+        height=config.world.height,
+    )
+
+    episodic_trace.record(
+        build_episode(
+            step=step,
+            position_before=position_before,
+            state_before=state_before,
+            plan=decision.plan,
+            action=decision.rule_choice.action,
+            reward=execution.reward,
+            event=execution.event,
+            position_after=agent.position,
+            state_after=(
+                float(agent.energy),
+                float(agent.health),
+                float(agent.curiosity),
+            ),
+            network_action=decision.network_choice.action,
+            imagination_action=decision.imagined_choice.action,
+            choices_agree=decision.choices_agree,
+            imagination_agrees=decision.imagination_agrees,
+        )
     )
 
     learning = update_step_learning(
@@ -135,6 +186,7 @@ def run_simulation_step(
         execution=execution,
         learning=learning,
         outcome_metrics=outcome_metrics,
+        memory=working_memory.snapshot(),
     )
 
     log_step_metrics(
