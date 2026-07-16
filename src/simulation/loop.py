@@ -41,6 +41,9 @@ def run_simulation_loop(
             outcome_optimizer=session.outcome_optimizer,
             outcome_samples=session.outcome_samples,
 
+            working_memory=session.working_memory,
+            episodic_trace=session.episodic_trace,
+
             policy_rng=session.policy_rng,
             training_rng=session.reward_training_rng,
             outcome_training_rng=session.outcome_training_rng,
