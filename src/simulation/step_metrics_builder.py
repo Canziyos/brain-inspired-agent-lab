@@ -33,6 +33,7 @@ def build_step_metrics(
 
     chosen_action = decision.rule_choice.action
     episodic_action = decision.episodic_advice.action
+    same_run_action = decision.same_run_episodic_advice.action
     prior_action = decision.prior_episodic_advice.action
 
     return StepMetrics(
@@ -108,6 +109,20 @@ def build_step_metrics(
 
         episodic_prior_episode_count=decision.prior_episode_count,
         episodic_same_run_episode_count=decision.same_run_episode_count,
+
+        episodic_same_run_action=same_run_action,
+        episodic_same_run_is_usable=(
+            decision.same_run_episodic_advice.is_usable
+        ),
+        episodic_same_run_agrees_with_rule=(
+            same_run_action is not None
+            and same_run_action is chosen_action
+        ),
+        episodic_same_run_agrees_with_imagination=(
+            same_run_action is not None
+            and same_run_action is decision.imagined_choice.action
+        ),
+
         episodic_prior_action=prior_action,
         episodic_prior_is_usable=(
             decision.prior_episodic_advice.is_usable
