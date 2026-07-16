@@ -11,6 +11,7 @@ from src.telemetry.metrics import (
 )
 
 
+
 def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
     output_path = tmp_path / "steps.csv"
 
@@ -52,6 +53,12 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
             episodic_agrees_with_imagination=True,
             episodic_reliability_reason="usable",
             episodic_rationale="episodic advisor test rationale",
+            episodic_prior_episode_count=100,
+            episodic_same_run_episode_count=3,
+            episodic_prior_action=Action.MOVE_EAST,
+            episodic_prior_is_usable=True,
+            episodic_prior_agrees_with_rule=True,
+            episodic_prior_agrees_with_imagination=True,
             termination_reason=None,
             goal_kind="mystery",
             goal_target=(1, 2),
@@ -150,6 +157,12 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
     assert row["episodic_agrees_with_imagination"] == "True"
     assert row["episodic_reliability_reason"] == "usable"
     assert row["episodic_rationale"] == "episodic advisor test rationale"
+    assert row["episodic_prior_episode_count"] == "100"
+    assert row["episodic_same_run_episode_count"] == "3"
+    assert row["episodic_prior_action"] == "move move_east (+1, +0)"
+    assert row["episodic_prior_is_usable"] == "True"
+    assert row["episodic_prior_agrees_with_rule"] == "True"
+    assert row["episodic_prior_agrees_with_imagination"] == "True"
 
     assert row["memory_goal_id"] == "mystery:1:2"
     assert row["memory_goal_age"] == "4"

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+from src.configs.episodic_memory import EpisodicMemoryConfig
 from src.configs.imagination import ImaginationConfig
 from src.configs.learning import LearningConfig
 from src.configs.outcome import OutcomeConfig
@@ -17,4 +18,7 @@ class SimulationConfig:
     output: OutputConfig = field(default_factory=OutputConfig)
     imagination: ImaginationConfig = field(
         default_factory=ImaginationConfig
+    )
+    episodic_memory: EpisodicMemoryConfig = field(
+        default_factory=EpisodicMemoryConfig
     )

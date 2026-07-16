@@ -56,8 +56,12 @@ class StepDecision:
     imagination_agrees: bool
 
     episodic_advice: EpisodicActionAdvice
+    prior_episodic_advice: EpisodicActionAdvice
+    prior_episode_count: int
+    same_run_episode_count: int
 
     state_before_prediction: torch.Tensor
+
 
 
 def choose_step_decision(
@@ -71,7 +75,8 @@ def choose_step_decision(
     imagination_reward_weight: float,
     policy_rng: random.Random,
     working_memory: WorkingMemory,
-    episodic_episodes: Sequence[Episode],
+    prior_episodic_episodes: Sequence[Episode],
+    same_run_episodic_episodes: Sequence[Episode],
 ) -> StepDecision:
     observations = tuple(
         agent.sense(world)
@@ -96,11 +101,22 @@ def choose_step_decision(
         )
     )
 
+    combined_episodes = tuple(prior_episodic_episodes) + tuple(
+        same_run_episodic_episodes
+    )
+
     episodic_advice = advise_from_episodes(
         agent=agent,
         plan=plan,
         evaluations=evaluations,
-        episodes=episodic_episodes,
+        episodes=combined_episodes,
+    )
+
+    prior_episodic_advice = advise_from_episodes(
+        agent=agent,
+        plan=plan,
+        evaluations=evaluations,
+        episodes=prior_episodic_episodes,
     )
 
     rule_choice = choose_action(
@@ -158,5 +174,8 @@ def choose_step_decision(
             rule_choice.action is imagined_choice.action
         ),
         episodic_advice=episodic_advice,
+        prior_episodic_advice=prior_episodic_advice,
+        prior_episode_count=len(prior_episodic_episodes),
+        same_run_episode_count=len(same_run_episodic_episodes),
         state_before_prediction=state_before_prediction,
     )

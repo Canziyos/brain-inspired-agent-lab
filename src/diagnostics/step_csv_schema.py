@@ -73,6 +73,12 @@ STEP_FIELDS: Final[tuple[str, ...]] = (
     "episodic_agrees_with_imagination",
     "episodic_reliability_reason",
     "episodic_rationale",
+    "episodic_prior_episode_count",
+    "episodic_same_run_episode_count",
+    "episodic_prior_action",
+    "episodic_prior_is_usable",
+    "episodic_prior_agrees_with_rule",
+    "episodic_prior_agrees_with_imagination",
     "termination_reason",
 )
 

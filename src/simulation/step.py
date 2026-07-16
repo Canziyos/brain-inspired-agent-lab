@@ -12,6 +12,7 @@ from src.learning.samples import (
     TransitionTrainingSample,
 )
 from src.memory.episode_trace import (
+    Episode,
     EpisodicTrace,
     build_episode,
 )
@@ -36,6 +37,7 @@ logger = logging.getLogger(
 )
 
 
+
 def run_simulation_step(
     step: int,
     config: SimulationConfig,
@@ -51,6 +53,7 @@ def run_simulation_step(
 
     working_memory: WorkingMemory,
     episodic_trace: EpisodicTrace,
+    prior_episodes: tuple[Episode, ...],
 
     policy_rng: random.Random,
     training_rng: random.Random,
@@ -86,7 +89,8 @@ def run_simulation_step(
         ),
         policy_rng=policy_rng,
         working_memory=working_memory,
-        episodic_episodes=episodic_trace.episodes,
+        prior_episodic_episodes=prior_episodes,
+        same_run_episodic_episodes=episodic_trace.episodes,
     )
 
     reset_outcome_prediction = predict_from_reset_state(

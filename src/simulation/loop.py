@@ -13,6 +13,7 @@ class SimulationRunResult:
     truncated: bool
 
 
+
 def run_simulation_loop(
     config: SimulationConfig,
     session: SimulationSession,
@@ -43,6 +44,7 @@ def run_simulation_loop(
 
             working_memory=session.working_memory,
             episodic_trace=session.episodic_trace,
+            prior_episodes=session.prior_episodes,
 
             policy_rng=session.policy_rng,
             training_rng=session.reward_training_rng,
