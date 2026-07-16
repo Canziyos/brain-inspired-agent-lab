@@ -54,6 +54,20 @@ class GoalCandidate:
     priority: float
 
 
+@dataclass(frozen=True, slots=True)
+class GoalPreference:
+    kind: GoalKind
+    target: Position
+    continuation_bonus: float
+    switch_margin: float
+
+
+@dataclass(frozen=True, slots=True)
+class PreferredGoalChoice:
+    plan: GoalPlan
+    total: float
+
+
 def known_object_targets(
     agent: Agent,
     cell_type: CellType,
@@ -191,6 +205,7 @@ def select_goal_plan(
     agent: Agent,
     width: int,
     height: int,
+    preference: GoalPreference | None = None,
 ) -> GoalPlan | None:
     traversable = known_traversable_cells(agent)
     scored_plans: list[ScoredGoalPlan] = []
@@ -213,16 +228,88 @@ def select_goal_plan(
     if not scored_plans:
         return None
 
+    choice = choose_preferred_goal(
+        scored_plans=scored_plans,
+        preference=preference,
+    )
+
+    return GoalPlan(
+        kind=choice.plan.kind,
+        target=choice.plan.target,
+        path=choice.plan.path,
+        score=choice.total,
+    )
+
+
+def choose_preferred_goal(
+    scored_plans: Collection[ScoredGoalPlan],
+    preference: GoalPreference | None,
+) -> PreferredGoalChoice:
     best = max(
         scored_plans,
         key=lambda scored_plan: scored_plan.total,
     )
 
-    return GoalPlan(
-        kind=best.plan.kind,
-        target=best.plan.target,
-        path=best.plan.path,
-        score=best.total,
+    if preference is None:
+        return PreferredGoalChoice(
+            plan=best.plan,
+            total=best.total,
+        )
+
+    preferred = find_preferred_scored_goal(
+        scored_plans=scored_plans,
+        preference=preference,
+    )
+
+    if preferred is None:
+        return PreferredGoalChoice(
+            plan=best.plan,
+            total=best.total,
+        )
+
+    preferred_total = preferred.total + preference.continuation_bonus
+
+    if goals_match(best.plan, preference):
+        return PreferredGoalChoice(
+            plan=best.plan,
+            total=preferred_total,
+        )
+
+    switch_threshold = preferred_total + preference.switch_margin
+
+    if best.total <= switch_threshold:
+        return PreferredGoalChoice(
+            plan=preferred.plan,
+            total=preferred_total,
+        )
+
+    return PreferredGoalChoice(
+        plan=best.plan,
+        total=best.total,
+    )
+
+
+def find_preferred_scored_goal(
+    scored_plans: Collection[ScoredGoalPlan],
+    preference: GoalPreference,
+) -> ScoredGoalPlan | None:
+    for scored_plan in scored_plans:
+        if goals_match(
+            plan=scored_plan.plan,
+            preference=preference,
+        ):
+            return scored_plan
+
+    return None
+
+
+def goals_match(
+    plan: GoalPlan,
+    preference: GoalPreference,
+) -> bool:
+    return (
+        plan.kind is preference.kind
+        and plan.target == preference.target
     )
 
 
