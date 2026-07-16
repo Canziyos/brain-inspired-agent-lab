@@ -9,6 +9,7 @@ from src.simulation.step_action_text import format_action
 from src.telemetry.metrics import Position, StepMetrics
 
 
+
 def write_steps_csv(
     history: Sequence[StepMetrics],
     output_path: Path,
@@ -32,6 +33,7 @@ def write_steps_csv(
 
         for metrics in history:
             writer.writerow(step_metrics_to_csv_row(metrics))
+
 
 
 def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
@@ -60,8 +62,16 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
         "goal_kind": optional_csv(metrics.goal_kind),
         "goal_target_x": goal_target_x,
         "goal_target_y": goal_target_y,
+        "memory_goal_id": optional_csv(metrics.memory_goal_id),
         "memory_goal_age": metrics.memory_goal_age,
         "memory_goal_switch_count": metrics.memory_goal_switch_count,
+        "memory_target_switch_count": metrics.memory_target_switch_count,
+        "memory_frontier_target_switch_count": (
+            metrics.memory_frontier_target_switch_count
+        ),
+        "memory_frontier_semantic_switch_count": (
+            metrics.memory_frontier_semantic_switch_count
+        ),
         "memory_recent_revisit_count": (
             metrics.memory_recent_revisit_count
         ),
@@ -89,6 +99,21 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
         "coverage_seen_ratio": metrics.coverage_seen_ratio,
         "coverage_visited_ratio": metrics.coverage_visited_ratio,
         "coverage_frontier_count": metrics.coverage_frontier_count,
+        "coverage_reachable_frontier_count": (
+            metrics.coverage_reachable_frontier_count
+        ),
+        "coverage_unreachable_frontier_count": (
+            metrics.coverage_unreachable_frontier_count
+        ),
+        "coverage_frontier_cluster_count": (
+            metrics.coverage_frontier_cluster_count
+        ),
+        "coverage_reachable_frontier_cluster_count": (
+            metrics.coverage_reachable_frontier_cluster_count
+        ),
+        "coverage_current_frontier_cluster_id": optional_csv(
+            metrics.coverage_current_frontier_cluster_id
+        ),
         "coverage_newly_seen_count": (
             metrics.coverage_newly_seen_count
         ),
@@ -121,6 +146,7 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
     row.update(outcome_metrics_to_csv_row(metrics.outcome_model))
 
     return row
+
 
 
 def position_to_csv(
