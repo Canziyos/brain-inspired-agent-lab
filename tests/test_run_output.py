@@ -55,6 +55,10 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
             episodic_rationale="episodic advisor test rationale",
             episodic_prior_episode_count=100,
             episodic_same_run_episode_count=3,
+            episodic_same_run_action=Action.MOVE_EAST,
+            episodic_same_run_is_usable=True,
+            episodic_same_run_agrees_with_rule=True,
+            episodic_same_run_agrees_with_imagination=True,
             episodic_prior_action=Action.MOVE_EAST,
             episodic_prior_is_usable=True,
             episodic_prior_agrees_with_rule=True,
@@ -159,6 +163,10 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
     assert row["episodic_rationale"] == "episodic advisor test rationale"
     assert row["episodic_prior_episode_count"] == "100"
     assert row["episodic_same_run_episode_count"] == "3"
+    assert row["episodic_same_run_action"] == "move move_east (+1, +0)"
+    assert row["episodic_same_run_is_usable"] == "True"
+    assert row["episodic_same_run_agrees_with_rule"] == "True"
+    assert row["episodic_same_run_agrees_with_imagination"] == "True"
     assert row["episodic_prior_action"] == "move move_east (+1, +0)"
     assert row["episodic_prior_is_usable"] == "True"
     assert row["episodic_prior_agrees_with_rule"] == "True"
