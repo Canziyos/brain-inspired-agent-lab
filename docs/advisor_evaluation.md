@@ -1,35 +1,30 @@
-# Advisor evaluation
+# Advisor evaluation diagnostics
 
-This branch adds a shadow-mode evaluator for comparing Baby Vice's decision sources without giving any of them control.
+This branch adds a shadow-mode scoreboard for Baby Vice's advisors.
 
-The executed action is still chosen by the symbolic rule policy.
+The symbolic rule policy still executes every action. The evaluator only asks which advisory channels agreed with the executed action and what realized rule-policy rewards were observed on those agreement/disagreement subsets.
 
-## Why
+## Channels
 
-After persistent memory and top-K retrieval, we need a clean way to compare advisor channels:
-
-```text
-rule policy
-same-run episodic advice
-prior-run episodic advice
-combined episodic advice
-neural imagination
-```
-
-The evaluator does not estimate full counterfactual rewards. It only measures realized rewards on steps where an advisor agreed or disagreed with the executed rule action.
-
-That distinction matters:
+The evaluator writes one row per channel:
 
 ```text
-agreement reward = reward received when advisor action matched the executed rule action
-disagreement reward = reward received by the rule action when advisor disagreed
+rule_policy
+same_run_episodic
+prior_episodic
+combined_episodic
+neural_imagination
 ```
 
-So disagreement reward is not the reward the advisor would have received. It is a safety-first diagnostic before policy arbitration.
+The episodic channels mean:
 
-## Run artifact
+- `same_run_episodic`: advice from episodes recorded earlier in the current run
+- `prior_episodic`: advice from persistent memory loaded before the current run
+- `combined_episodic`: advice from prior memory plus current-run memory
 
-Normal saved runs now write:
+## Output files
+
+For saved runs, the run directory now includes:
 
 ```text
 advisor_evaluation.csv
@@ -43,62 +38,117 @@ episodes.csv
 coverage.csv
 ```
 
-The advisor evaluation file is long-form. Each row is one channel.
-
-Important columns:
-
-- `channel`
-- `advice_count`
-- `usable_count`
-- `agreement_rate`
-- `usable_agreement_rate`
-- `mean_rule_reward_when_advice_agreed`
-- `mean_rule_reward_when_advice_disagreed`
-- `mean_rule_reward_when_usable_agreed`
-- `mean_rule_reward_when_usable_disagreed`
-
-## Sweep
-
-Run:
+The experiment command:
 
 ```powershell
 python -m experiments.run_advisor_evaluation_sweep
 ```
 
-It runs the usual ten-seed persistent-memory sequence and writes:
+writes:
 
 ```text
 artifacts/advisor_evaluation_sweep.csv
 artifacts/advisor_evaluation_sweep_memory.jsonl
 ```
 
-The sweep output adds `run_index` and `seed` before the advisor-evaluation columns.
+## Metrics
 
-## Interpretation
+Each channel row reports:
+
+```text
+advice_count
+usable_count
+agreement_count
+usable_agreement_count
+advice_rate
+usable_rate
+agreement_rate
+usable_agreement_rate
+mean_rule_reward_all_steps
+mean_rule_reward_when_advice_agreed
+mean_rule_reward_when_advice_disagreed
+mean_rule_reward_when_usable_agreed
+mean_rule_reward_when_usable_disagreed
+mean_expected_reward
+mean_confidence
+mean_reliability
+```
+
+The `mean_expected_reward`, `mean_confidence`, and `mean_reliability` columns are populated for each advisory source that has those values:
+
+- same-run episodic advice
+- prior-run episodic advice
+- combined episodic advice
+- neural imagination expected reward
+
+Rule policy has no advisory confidence/reliability, so those fields stay zero for that row.
+
+## Important interpretation limit
+
+The reward columns are not counterfactual rewards.
+
+They are realized rewards from the symbolic rule policy:
+
+```text
+rule policy executed action
+advisor agreed or disagreed
+record realized rule reward
+```
+
+So this evaluator can support statements such as:
+
+```text
+When prior memory agreed with the executed rule action, those steps had higher realized rewards.
+```
+
+It cannot yet support:
+
+```text
+If prior memory had controlled Baby Vice, total return would have improved.
+```
+
+That requires an arbitration/control experiment later.
+
+## Why this step exists
+
+Top-K episodic retrieval reduced prior-memory saturation. Before we allow any advisor to influence behavior, we need a diagnostic scoreboard that reveals:
+
+- whether same-run memory agrees with successful rule actions
+- whether prior memory agrees with successful rule actions
+- whether combined memory is better than either memory source alone
+- whether neural imagination is aligned with rule behavior
+- whether advisor disagreements identify possible missed opportunities
+
+## Desired signs
 
 Good signals:
 
-- usable advice agrees with the rule policy more often than raw advice
-- usable-agreed steps have higher realized rule reward than usable-disagreed steps
-- prior memory remains selective after top-K retrieval
-- combined episodic advice is not simply identical to prior or same-run advice
+```text
+usable agreement subsets have better realized rule rewards than disagreement subsets
+prior and combined memory keep positive reward separation
+same-run memory becomes reliable after enough current-run evidence accumulates
+```
 
-Bad signals:
+Warning signs:
 
-- usable advice saturates near every step
-- usable disagreement reward is strongly higher than usable agreement reward
-- prior memory overwhelms same-run evidence too early
+```text
+usable disagreements are consistently better than usable agreements
+combined memory becomes worse than prior-only or same-run-only
+advisor confidence/reliability rise while reward separation collapses
+```
 
 ## Still shadow mode
 
-This branch does not implement arbitration.
+This branch does not introduce policy arbitration.
 
-The purpose is to build the scoreboard needed before arbitration:
+The action pipeline remains:
 
 ```text
-who tends to agree with successful actions?
-who disagrees in useful places?
-who becomes overconfident?
+symbolic rule policy executes
+same-run memory is measured
+prior memory is measured
+combined memory is measured
+neural imagination is measured
 ```
 
-Only after this evaluator is stable should Baby Vice be allowed a supervised arbitration layer.
+Baby Vice receives a scoreboard, not a steering wheel.
