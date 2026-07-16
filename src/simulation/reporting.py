@@ -19,25 +19,34 @@ def log_startup(
     logger: logging.Logger,
     config: SimulationConfig,
     run_directory: Path | None,
+    prior_episode_count: int = 0,
 ) -> None:
-    if run_directory is None:
-        return
+    if run_directory is not None:
+        logger.info(
+            (
+                "Simulation started: "
+                "world=%dx%d, max_steps=%d, seed=%d"
+            ),
+            config.world.width,
+            config.world.height,
+            config.runtime.max_steps,
+            config.runtime.random_seed,
+        )
 
-    logger.info(
-        (
-            "Simulation started: "
-            "world=%dx%d, max_steps=%d, seed=%d"
-        ),
-        config.world.width,
-        config.world.height,
-        config.runtime.max_steps,
-        config.runtime.random_seed,
-    )
+        logger.info(
+            "Run directory: %s",
+            run_directory,
+        )
 
-    logger.info(
-        "Run directory: %s",
-        run_directory,
-    )
+    if config.episodic_memory.enabled:
+        logger.info(
+            (
+                "Persistent episodic memory: "
+                "loaded_prior_episodes=%d, store=%s"
+            ),
+            prior_episode_count,
+            config.episodic_memory.store_path,
+        )
 
 
 
@@ -112,8 +121,19 @@ def log_final_summary(
         item.episodic_is_usable
         for item in history
     )
+    prior_advice_count = sum(
+        item.episodic_prior_action is not None
+        for item in history
+    )
+    prior_usable_count = sum(
+        item.episodic_prior_is_usable
+        for item in history
+    )
+
     episodic_advice_rate = episodic_advice_count / len(history)
     episodic_usable_rate = episodic_usable_count / len(history)
+    prior_advice_rate = prior_advice_count / len(history)
+    prior_usable_rate = prior_usable_count / len(history)
 
     episodic_rule_agreement_rate = safe_rate(
         numerator=sum(
@@ -142,6 +162,15 @@ def log_final_summary(
         denominator=episodic_usable_count,
     )
 
+    prior_rule_agreement_rate = safe_rate(
+        numerator=sum(
+            item.episodic_prior_agrees_with_rule
+            for item in history
+            if item.episodic_prior_action is not None
+        ),
+        denominator=prior_advice_count,
+    )
+
     logger.info(
         (
             "Simulation finished: "
@@ -164,6 +193,10 @@ def log_final_summary(
             "episodic_rule_agreement=%.1f%%, "
             "episodic_imagination_agreement=%.1f%%, "
             "usable_episodic_rule_agreement=%.1f%%, "
+            "prior_episode_count=%d, "
+            "prior_advice_rate=%.1f%%, "
+            "prior_usable_rate=%.1f%%, "
+            "prior_rule_agreement=%.1f%%, "
             "semantic_goal_switches=%d, "
             "target_switches=%d, "
             "frontier_target_switches=%d, "
@@ -197,6 +230,10 @@ def log_final_summary(
         episodic_rule_agreement_rate * 100.0,
         episodic_imagination_agreement_rate * 100.0,
         usable_rule_agreement_rate * 100.0,
+        final.episodic_prior_episode_count,
+        prior_advice_rate * 100.0,
+        prior_usable_rate * 100.0,
+        prior_rule_agreement_rate * 100.0,
         final.memory_goal_switch_count,
         final.memory_target_switch_count,
         final.memory_frontier_target_switch_count,
