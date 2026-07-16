@@ -77,15 +77,21 @@ def build_step_metrics(
         imagination_agrees=decision.imagination_agrees,
 
         episodic_action=episodic_action,
+        episodic_raw_expected_reward=(
+            decision.episodic_advice.raw_expected_reward
+        ),
         episodic_expected_reward=(
             decision.episodic_advice.expected_reward
         ),
         episodic_confidence=decision.episodic_advice.confidence,
+        episodic_reliability=decision.episodic_advice.reliability,
         episodic_match_count=decision.episodic_advice.match_count,
         episodic_best_event=decision.episodic_advice.best_event,
         episodic_risk_hit_danger=(
             decision.episodic_advice.risk_hit_danger
         ),
+        episodic_has_advice=decision.episodic_advice.has_advice,
+        episodic_is_usable=decision.episodic_advice.is_usable,
         episodic_agrees_with_rule=(
             episodic_action is not None
             and episodic_action is chosen_action
@@ -93,6 +99,9 @@ def build_step_metrics(
         episodic_agrees_with_imagination=(
             episodic_action is not None
             and episodic_action is decision.imagined_choice.action
+        ),
+        episodic_reliability_reason=(
+            decision.episodic_advice.reliability_reason
         ),
         episodic_rationale=decision.episodic_advice.rationale,
 
