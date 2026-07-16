@@ -3,6 +3,8 @@ from src.core.agent import Agent
 from src.core.dynamics_types import EventType
 from src.memory.episode_retrieval import (
     MAX_SIMILAR_EPISODES_PER_ACTION,
+    MIN_EPISODE_SIMILARITY_WEIGHT,
+    MIN_RELATIVE_SIMILARITY_WEIGHT,
     NO_EPISODIC_ADVICE,
     action_episode_stats,
     advise_from_episodes,
@@ -212,4 +214,40 @@ def test_action_stats_use_only_top_similar_matches_per_action() -> None:
     )
 
     assert stats.match_count == MAX_SIMILAR_EPISODES_PER_ACTION
+    assert stats.raw_expected_reward == 2.0
+
+
+def test_weak_matches_below_similarity_floor_are_filtered() -> None:
+    query = build_episode_query(
+        agent=agent(),
+        plan=plan(),
+        evaluations=(ActionEvaluation(Action.MOVE_EAST, 10.0),),
+    )
+    strong_matches = tuple(
+        episode(
+            Action.MOVE_EAST,
+            reward=2.0,
+            position_before=(1, 1),
+            step=100 + index,
+        )
+        for index in range(4)
+    )
+    weak_matches = tuple(
+        episode(
+            Action.MOVE_EAST,
+            reward=-100.0,
+            position_before=(17, 15),
+            step=index,
+        )
+        for index in range(20)
+    )
+
+    (stats,) = action_episode_stats(
+        query=query,
+        episodes=weak_matches + strong_matches,
+    )
+
+    assert MIN_EPISODE_SIMILARITY_WEIGHT > 0.0
+    assert MIN_RELATIVE_SIMILARITY_WEIGHT > 0.0
+    assert stats.match_count == len(strong_matches)
     assert stats.raw_expected_reward == 2.0
