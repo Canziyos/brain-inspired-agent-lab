@@ -69,18 +69,24 @@ def summarize_advisor_evaluation(
             history=history,
             action_getter=lambda item: item.episodic_same_run_action,
             usable_getter=lambda item: item.episodic_same_run_is_usable,
-            expected_getter=lambda item: 0.0,
-            confidence_getter=lambda item: 0.0,
-            reliability_getter=lambda item: 0.0,
+            expected_getter=(
+                lambda item: item.episodic_same_run_expected_reward
+            ),
+            confidence_getter=(
+                lambda item: item.episodic_same_run_confidence
+            ),
+            reliability_getter=(
+                lambda item: item.episodic_same_run_reliability
+            ),
         ),
         summarize_channel(
             channel="prior_episodic",
             history=history,
             action_getter=lambda item: item.episodic_prior_action,
             usable_getter=lambda item: item.episodic_prior_is_usable,
-            expected_getter=lambda item: 0.0,
-            confidence_getter=lambda item: 0.0,
-            reliability_getter=lambda item: 0.0,
+            expected_getter=lambda item: item.episodic_prior_expected_reward,
+            confidence_getter=lambda item: item.episodic_prior_confidence,
+            reliability_getter=lambda item: item.episodic_prior_reliability,
         ),
         summarize_channel(
             channel="combined_episodic",
