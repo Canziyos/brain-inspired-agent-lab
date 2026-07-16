@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from src.core.actions import Action, ActionEvaluation
@@ -18,6 +18,22 @@ STATE_HEALTH_SCALE = 100.0
 STATE_CURIOSITY_SCALE = 50.0
 SIMILARITY_PRIOR_WEIGHT = 3.0
 CONFIDENCE_MATCH_SCALE = 8.0
+
+MIN_USABLE_MATCH_COUNT = 3
+MIN_USABLE_CONFIDENCE = 0.35
+MIN_USABLE_RELIABILITY = 0.35
+MIN_USABLE_TOTAL_WEIGHT = 0.50
+MAX_USABLE_DANGER_RISK = 0.75
+
+REWARD_SHRINKAGE_PRIOR = 2.0
+RARE_EVENT_MIN_COUNT = 3
+RARE_EVENT_DAMPING = 0.45
+RARE_REWARD_EVENTS = frozenset(
+    {
+        EventType.ATE_FOOD,
+        EventType.DISCOVERED_MYSTERY,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,19 +52,26 @@ class ActionEpisodeStats:
     action: Action
     match_count: int
     total_weight: float
+    raw_expected_reward: float
     expected_reward: float
     best_event: EventType | None
+    best_event_count: int
     risk_hit_danger: float
+    rare_event_dampened: bool
 
 
 @dataclass(frozen=True, slots=True)
 class EpisodicActionAdvice:
     action: Action | None
+    raw_expected_reward: float
     expected_reward: float
     confidence: float
+    reliability: float
     match_count: int
     best_event: EventType | None
     risk_hit_danger: float
+    is_usable: bool
+    reliability_reason: str
     rationale: str
 
     @property
@@ -58,11 +81,15 @@ class EpisodicActionAdvice:
 
 NO_EPISODIC_ADVICE = EpisodicActionAdvice(
     action=None,
+    raw_expected_reward=0.0,
     expected_reward=0.0,
     confidence=0.0,
+    reliability=0.0,
     match_count=0,
     best_event=None,
     risk_hit_danger=0.0,
+    is_usable=False,
+    reliability_reason="no similar episodes yet",
     rationale="no similar episodes yet",
 )
 
@@ -107,18 +134,43 @@ def advise_from_episodes(
         if len(ranked_stats) > 1
         else None
     )
+    confidence = advice_confidence(
+        best=best,
+        second_expected_reward=second_expected_reward,
+    )
+    reliability = advice_reliability(
+        best=best,
+        confidence=confidence,
+    )
+    reliability_reason = advice_reliability_reason(
+        best=best,
+        confidence=confidence,
+        reliability=reliability,
+    )
+    is_usable = advice_is_usable(
+        best=best,
+        confidence=confidence,
+        reliability=reliability,
+    )
 
     return EpisodicActionAdvice(
         action=best.action,
+        raw_expected_reward=best.raw_expected_reward,
         expected_reward=best.expected_reward,
-        confidence=advice_confidence(
-            best=best,
-            second_expected_reward=second_expected_reward,
-        ),
+        confidence=confidence,
+        reliability=reliability,
         match_count=best.match_count,
         best_event=best.best_event,
         risk_hit_danger=best.risk_hit_danger,
-        rationale=advice_rationale(best),
+        is_usable=is_usable,
+        reliability_reason=reliability_reason,
+        rationale=advice_rationale(
+            stats=best,
+            confidence=confidence,
+            reliability=reliability,
+            is_usable=is_usable,
+            reliability_reason=reliability_reason,
+        ),
     )
 
 
@@ -159,6 +211,9 @@ def action_episode_stats(
     event_weights: dict[Action, dict[EventType, float]] = defaultdict(
         lambda: defaultdict(float)
     )
+    event_counts: dict[Action, dict[EventType, int]] = defaultdict(
+        lambda: defaultdict(int)
+    )
     danger_weights: dict[Action, float] = defaultdict(float)
 
     for episode in episodes:
@@ -177,6 +232,7 @@ def action_episode_stats(
         total_weights[episode.action] += weight
         counts[episode.action] += 1
         event_weights[episode.action][episode.event] += weight
+        event_counts[episode.action][episode.event] += 1
 
         if episode.event is EventType.HIT_DANGER:
             danger_weights[episode.action] += weight
@@ -188,19 +244,37 @@ def action_episode_stats(
             continue
 
         best_event = weighted_mode(event_weights[action])
+        best_event_count = (
+            event_counts[action][best_event]
+            if best_event is not None
+            else 0
+        )
+        raw_expected_reward = weighted_rewards[action] / total_weight
+        expected_reward = calibrated_expected_reward(
+            raw_expected_reward=raw_expected_reward,
+            total_weight=total_weight,
+            best_event=best_event,
+            best_event_count=best_event_count,
+        )
+        rare_event_dampened = rare_event_was_dampened(
+            raw_expected_reward=raw_expected_reward,
+            best_event=best_event,
+            best_event_count=best_event_count,
+        )
 
         stats.append(
             ActionEpisodeStats(
                 action=action,
                 match_count=counts[action],
                 total_weight=total_weight,
-                expected_reward=(
-                    weighted_rewards[action] / total_weight
-                ),
+                raw_expected_reward=raw_expected_reward,
+                expected_reward=expected_reward,
                 best_event=best_event,
+                best_event_count=best_event_count,
                 risk_hit_danger=(
                     danger_weights[action] / total_weight
                 ),
+                rare_event_dampened=rare_event_dampened,
             )
         )
 
@@ -299,6 +373,39 @@ def weighted_mode(
     )
 
 
+def calibrated_expected_reward(
+    raw_expected_reward: float,
+    total_weight: float,
+    best_event: EventType | None,
+    best_event_count: int,
+) -> float:
+    evidence_weight = total_weight / (
+        total_weight + REWARD_SHRINKAGE_PRIOR
+    )
+    calibrated = raw_expected_reward * evidence_weight
+
+    if rare_event_was_dampened(
+        raw_expected_reward=raw_expected_reward,
+        best_event=best_event,
+        best_event_count=best_event_count,
+    ):
+        calibrated *= RARE_EVENT_DAMPING
+
+    return calibrated
+
+
+def rare_event_was_dampened(
+    raw_expected_reward: float,
+    best_event: EventType | None,
+    best_event_count: int,
+) -> bool:
+    return (
+        raw_expected_reward > 0.0
+        and best_event in RARE_REWARD_EVENTS
+        and best_event_count < RARE_EVENT_MIN_COUNT
+    )
+
+
 def advice_confidence(
     best: ActionEpisodeStats,
     second_expected_reward: float | None,
@@ -325,27 +432,105 @@ def advice_confidence(
             min(1.0, margin / scale),
         )
 
-    return max(
-        0.0,
-        min(
-            1.0,
-            0.5 * weight_confidence
-            + 0.3 * match_confidence
-            + 0.2 * separation_confidence,
-        ),
+    return clamp01(
+        0.5 * weight_confidence
+        + 0.3 * match_confidence
+        + 0.2 * separation_confidence
     )
 
 
-def advice_rationale(stats: ActionEpisodeStats) -> str:
+def advice_reliability(
+    best: ActionEpisodeStats,
+    confidence: float,
+) -> float:
+    match_signal = min(
+        1.0,
+        best.match_count / MIN_USABLE_MATCH_COUNT,
+    )
+    weight_signal = best.total_weight / (
+        best.total_weight + SIMILARITY_PRIOR_WEIGHT
+    )
+    safety_signal = 1.0 - min(1.0, best.risk_hit_danger)
+    rare_event_penalty = 0.15 if best.rare_event_dampened else 0.0
+
+    return clamp01(
+        0.40 * confidence
+        + 0.30 * match_signal
+        + 0.20 * weight_signal
+        + 0.10 * safety_signal
+        - rare_event_penalty
+    )
+
+
+def advice_is_usable(
+    best: ActionEpisodeStats,
+    confidence: float,
+    reliability: float,
+) -> bool:
+    return (
+        best.match_count >= MIN_USABLE_MATCH_COUNT
+        and best.total_weight >= MIN_USABLE_TOTAL_WEIGHT
+        and confidence >= MIN_USABLE_CONFIDENCE
+        and reliability >= MIN_USABLE_RELIABILITY
+        and best.risk_hit_danger <= MAX_USABLE_DANGER_RISK
+    )
+
+
+def advice_reliability_reason(
+    best: ActionEpisodeStats,
+    confidence: float,
+    reliability: float,
+) -> str:
+    reasons: list[str] = []
+
+    if best.match_count < MIN_USABLE_MATCH_COUNT:
+        reasons.append("low_match_count")
+
+    if best.total_weight < MIN_USABLE_TOTAL_WEIGHT:
+        reasons.append("low_similarity_weight")
+
+    if confidence < MIN_USABLE_CONFIDENCE:
+        reasons.append("low_confidence")
+
+    if reliability < MIN_USABLE_RELIABILITY:
+        reasons.append("low_reliability")
+
+    if best.risk_hit_danger > MAX_USABLE_DANGER_RISK:
+        reasons.append("high_danger_risk")
+
+    if best.rare_event_dampened:
+        reasons.append("rare_reward_event_dampened")
+
+    if not reasons:
+        return "usable"
+
+    return ";".join(reasons)
+
+
+def advice_rationale(
+    stats: ActionEpisodeStats,
+    confidence: float,
+    reliability: float,
+    is_usable: bool,
+    reliability_reason: str,
+) -> str:
     event_text = (
         stats.best_event.value
         if stats.best_event is not None
         else "unknown"
     )
+    status = "usable" if is_usable else "weak"
 
     return (
-        f"episodic advisor: {stats.match_count} similar "
-        f"episodes, expected_reward={stats.expected_reward:.3f}, "
+        f"episodic advisor ({status}): {stats.match_count} similar "
+        f"episodes, raw_expected_reward={stats.raw_expected_reward:.3f}, "
+        f"calibrated_expected_reward={stats.expected_reward:.3f}, "
+        f"confidence={confidence:.3f}, reliability={reliability:.3f}, "
         f"common_event={event_text}, "
-        f"danger_risk={stats.risk_hit_danger:.3f}"
+        f"danger_risk={stats.risk_hit_danger:.3f}, "
+        f"reason={reliability_reason}"
     )
+
+
+def clamp01(value: float) -> float:
+    return max(0.0, min(1.0, value))
