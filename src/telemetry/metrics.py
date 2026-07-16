@@ -74,6 +74,16 @@ class StepMetrics:
 
     imagination_agrees: bool
 
+    episodic_action: Action | None
+    episodic_expected_reward: float
+    episodic_confidence: float
+    episodic_match_count: int
+    episodic_best_event: EventType | None
+    episodic_risk_hit_danger: float
+    episodic_agrees_with_rule: bool
+    episodic_agrees_with_imagination: bool
+    episodic_rationale: str
+
     termination_reason: str | None
     goal_kind: str | None
     goal_target: Position | None
