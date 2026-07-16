@@ -88,4 +88,16 @@ class StepMetrics:
     memory_last_mystery_position: Position | None
     memory_last_danger_position: Position | None
 
+    coverage_total_world_cells: int
+    coverage_seen_cell_count: int
+    coverage_visited_cell_count: int
+    coverage_unseen_cell_count: int
+    coverage_seen_ratio: float
+    coverage_visited_ratio: float
+    coverage_frontier_count: int
+    coverage_newly_seen_count: int
+    coverage_newly_visited_count: int
+    coverage_first_full_seen_step: int | None
+    coverage_first_full_visited_step: int | None
+
     outcome_model: OutcomeModelMetrics | None
