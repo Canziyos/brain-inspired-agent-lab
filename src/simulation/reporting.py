@@ -104,6 +104,32 @@ def log_final_summary(
         / len(history)
     )
 
+    episodic_advice_count = sum(
+        item.episodic_action is not None
+        for item in history
+    )
+    episodic_advice_rate = episodic_advice_count / len(history)
+
+    episodic_rule_agreement_rate = (
+        sum(
+            item.episodic_agrees_with_rule
+            for item in history
+        )
+        / episodic_advice_count
+        if episodic_advice_count > 0
+        else 0.0
+    )
+
+    episodic_imagination_agreement_rate = (
+        sum(
+            item.episodic_agrees_with_imagination
+            for item in history
+        )
+        / episodic_advice_count
+        if episodic_advice_count > 0
+        else 0.0
+    )
+
     logger.info(
         (
             "Simulation finished: "
@@ -121,6 +147,9 @@ def log_final_summary(
             "mean_reward=%.3f, "
             "reward_network_agreement=%.1f%%, "
             "imagination_agreement=%.1f%%, "
+            "episodic_advice_rate=%.1f%%, "
+            "episodic_rule_agreement=%.1f%%, "
+            "episodic_imagination_agreement=%.1f%%, "
             "semantic_goal_switches=%d, "
             "target_switches=%d, "
             "frontier_target_switches=%d, "
@@ -149,6 +178,9 @@ def log_final_summary(
         mean_reward,
         agreement_rate * 100.0,
         imagination_agreement_rate * 100.0,
+        episodic_advice_rate * 100.0,
+        episodic_rule_agreement_rate * 100.0,
+        episodic_imagination_agreement_rate * 100.0,
         final.memory_goal_switch_count,
         final.memory_target_switch_count,
         final.memory_frontier_target_switch_count,
