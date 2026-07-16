@@ -168,6 +168,18 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
         "episodic_same_run_episode_count": (
             metrics.episodic_same_run_episode_count
         ),
+        "episodic_same_run_action": optional_action_csv(
+            metrics.episodic_same_run_action
+        ),
+        "episodic_same_run_is_usable": (
+            metrics.episodic_same_run_is_usable
+        ),
+        "episodic_same_run_agrees_with_rule": (
+            metrics.episodic_same_run_agrees_with_rule
+        ),
+        "episodic_same_run_agrees_with_imagination": (
+            metrics.episodic_same_run_agrees_with_imagination
+        ),
         "episodic_prior_action": optional_action_csv(
             metrics.episodic_prior_action
         ),
