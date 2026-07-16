@@ -59,6 +59,15 @@ STEP_FIELDS: Final[tuple[str, ...]] = (
     "rule_imagined_reward",
     "rule_imagined_utility",
     "imagination_agrees",
+    "episodic_action",
+    "episodic_expected_reward",
+    "episodic_confidence",
+    "episodic_match_count",
+    "episodic_best_event",
+    "episodic_risk_hit_danger",
+    "episodic_agrees_with_rule",
+    "episodic_agrees_with_imagination",
+    "episodic_rationale",
     "termination_reason",
 )
 
