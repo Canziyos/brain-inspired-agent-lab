@@ -1,4 +1,5 @@
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import torch
@@ -9,6 +10,11 @@ from src.core.perception import Observation
 from src.core.world import World
 from src.learning.outcome import RateRecurrentOutcomeModel
 from src.learning.reward_network import ImmediateRewardNetwork
+from src.memory.episode_retrieval import (
+    EpisodicActionAdvice,
+    advise_from_episodes,
+)
+from src.memory.episode_trace import Episode
 from src.memory.working_memory import WorkingMemory
 from src.planning.goal_planner import (
     GoalPlan,
@@ -49,6 +55,8 @@ class StepDecision:
     chosen_imagination: ImaginedAction
     imagination_agrees: bool
 
+    episodic_advice: EpisodicActionAdvice
+
     state_before_prediction: torch.Tensor
 
 
@@ -63,6 +71,7 @@ def choose_step_decision(
     imagination_reward_weight: float,
     policy_rng: random.Random,
     working_memory: WorkingMemory,
+    episodic_episodes: Sequence[Episode],
 ) -> StepDecision:
     observations = tuple(
         agent.sense(world)
@@ -85,6 +94,13 @@ def choose_step_decision(
             observations=observations,
             plan=plan,
         )
+    )
+
+    episodic_advice = advise_from_episodes(
+        agent=agent,
+        plan=plan,
+        evaluations=evaluations,
+        episodes=episodic_episodes,
     )
 
     rule_choice = choose_action(
@@ -141,5 +157,6 @@ def choose_step_decision(
         imagination_agrees=(
             rule_choice.action is imagined_choice.action
         ),
+        episodic_advice=episodic_advice,
         state_before_prediction=state_before_prediction,
     )
