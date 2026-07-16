@@ -5,8 +5,10 @@ from src.core.world import CellType
 from src.planning.goal_planner import GoalKind, GoalPlan
 from src.policies.rule_policy import (
     PLANNED_ACTION_MIN_SCORE,
+    REST_RECOVERY_SCORE,
     choose_action,
     evaluate_actions,
+    rest_score,
 )
 
 
@@ -46,7 +48,7 @@ def test_evaluate_actions_scores_observed_options() -> None:
     assert Action.MOVE_SOUTH not in by_action
 
 
-def test_evaluate_actions_suppresses_rest_above_survival_low_energy() -> None:
+def test_evaluate_actions_suppresses_rest_above_recovery_target() -> None:
     agent = Agent(
         x=1,
         y=1,
@@ -66,11 +68,11 @@ def test_evaluate_actions_suppresses_rest_above_survival_low_energy() -> None:
     assert Action.MOVE_NORTH in by_action
 
 
-def test_evaluate_actions_keeps_rest_when_energy_is_critically_low() -> None:
+def test_evaluate_actions_keeps_rest_below_recovery_target() -> None:
     agent = Agent(
         x=1,
         y=1,
-        energy=25.0,
+        energy=35.0,
     )
 
     evaluations = evaluate_actions(
@@ -84,6 +86,35 @@ def test_evaluate_actions_keeps_rest_when_energy_is_critically_low() -> None:
 
     assert Action.REST in by_action
     assert Action.MOVE_NORTH in by_action
+
+
+def test_rest_score_is_boosted_below_recovery_target() -> None:
+    agent = Agent(
+        x=1,
+        y=1,
+        energy=35.0,
+    )
+
+    assert rest_score(agent) == REST_RECOVERY_SCORE
+
+
+def test_food_can_still_beat_recovery_rest() -> None:
+    agent = Agent(
+        x=1,
+        y=1,
+        energy=35.0,
+    )
+
+    evaluations = evaluate_actions(
+        agent,
+        [
+            Observation(2, 1, CellType.FOOD),
+        ],
+    )
+
+    chosen = choose_action(evaluations)
+
+    assert chosen.action is Action.MOVE_EAST
 
 
 def test_evaluate_actions_keeps_rest_when_no_safe_move_exists() -> None:
