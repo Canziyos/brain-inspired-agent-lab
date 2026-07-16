@@ -1,4 +1,5 @@
 from src.core.agent import Agent
+from src.memory.working_memory import WorkingMemorySnapshot
 from src.simulation.step_decision import StepDecision
 from src.simulation.step_execution import StepExecution
 from src.simulation.step_learning import StepLearningResult
@@ -15,6 +16,7 @@ def build_step_metrics(
     execution: StepExecution,
     learning: StepLearningResult,
     outcome_metrics: OutcomeModelMetrics,
+    memory: WorkingMemorySnapshot,
 ) -> StepMetrics:
     goal_kind = (
         decision.plan.kind.value
@@ -75,6 +77,18 @@ def build_step_metrics(
         termination_reason=execution.termination_reason,
         goal_kind=goal_kind,
         goal_target=goal_target,
+
+        memory_goal_age=memory.current_goal_age,
+        memory_goal_switch_count=memory.goal_switch_count,
+        memory_recent_revisit_count=(
+            memory.recent_position_revisit_count
+        ),
+        memory_stuck_counter=memory.stuck_counter,
+        memory_recent_rest_count=memory.recent_rest_count,
+        memory_energy_trend=memory.energy_trend,
+        memory_last_food_position=memory.last_food_position,
+        memory_last_mystery_position=memory.last_mystery_position,
+        memory_last_danger_position=memory.last_danger_position,
 
         outcome_model=outcome_metrics,
     )
