@@ -3,6 +3,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from src.configs import SimulationConfig
+from src.diagnostics.advisor_evaluation_csv import (
+    write_advisor_evaluation_csv,
+)
 from src.diagnostics.coverage_csv import write_coverage_csv
 from src.diagnostics.episode_csv import write_episodes_csv
 from src.diagnostics.step_csv import write_steps_csv
@@ -262,6 +265,7 @@ def write_run_outputs(
     steps_path = run_directory / "steps.csv"
     episodes_path = run_directory / "episodes.csv"
     coverage_path = run_directory / "coverage.csv"
+    advisor_evaluation_path = run_directory / "advisor_evaluation.csv"
 
     write_steps_csv(
         history=history,
@@ -278,6 +282,11 @@ def write_run_outputs(
         width=world_width,
         height=world_height,
         output_path=coverage_path,
+    )
+
+    write_advisor_evaluation_csv(
+        history=history,
+        output_path=advisor_evaluation_path,
     )
 
     log_final_summary(
@@ -298,6 +307,10 @@ def write_run_outputs(
     logger.info(
         "Coverage trace written to: %s",
         coverage_path,
+    )
+    logger.info(
+        "Advisor evaluation written to: %s",
+        advisor_evaluation_path,
     )
 
 
