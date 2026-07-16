@@ -66,7 +66,7 @@ The branch also logs prior-run diagnostics separately:
 - `episodic_prior_agrees_with_rule`
 - `episodic_prior_agrees_with_imagination`
 
-This lets us answer whether yesterday's notes are helping without letting them control behavior.
+This lets us answer whether prior notes are helping without letting them control behavior.
 
 ## Probe
 
@@ -91,6 +91,19 @@ The important columns are:
 - `prior_advice_rate`
 - `prior_usable_rate`
 - `prior_rule_agreement`
+- `prior_usable_rule_agreement`
+- `prior_usable_imagination_agreement`
+- `prior_advice_mean_reward`
+- `prior_usable_mean_reward`
+- `prior_weak_mean_reward`
+
+The most important split is:
+
+```text
+prior_usable_mean_reward versus prior_weak_mean_reward
+```
+
+That tells us whether the reliability gates are separating useful prior memory from low-evidence prior memory.
 
 ## Still not policy control
 
