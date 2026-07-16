@@ -8,11 +8,16 @@ from typing import Deque, TypeAlias
 from src.core.actions import Action
 from src.core.agent import Agent
 from src.core.dynamics_types import EventType
-from src.planning.frontier_planner import find_frontiers
+from src.planning.frontier_planner import (
+    find_frontier_clusters,
+    find_frontiers,
+    find_reachable_frontiers,
+)
 from src.planning.goal_planner import (
     GoalKind,
     GoalPlan,
     GoalPreference,
+    target_goal_id,
 )
 
 
@@ -35,8 +40,12 @@ STUCK_UNIQUE_POSITION_THRESHOLD = 2
 class WorkingMemorySnapshot:
     current_goal_kind: str | None
     current_goal_target: Position | None
+    current_goal_id: str | None
     current_goal_age: int
     goal_switch_count: int
+    target_switch_count: int
+    frontier_target_switch_count: int
+    frontier_semantic_switch_count: int
 
     recent_position_revisit_count: int
     stuck_counter: int
@@ -54,6 +63,11 @@ class WorkingMemorySnapshot:
     seen_ratio: float
     visited_ratio: float
     frontier_count: int
+    reachable_frontier_count: int
+    unreachable_frontier_count: int
+    frontier_cluster_count: int
+    reachable_frontier_cluster_count: int
+    current_frontier_cluster_id: str | None
     newly_seen_count: int
     newly_visited_count: int
     first_full_seen_step: int | None
@@ -80,8 +94,12 @@ class WorkingMemory:
 
     current_goal_kind: GoalKind | None = None
     current_goal_target: Position | None = None
+    current_goal_id: str | None = None
     current_goal_age: int = 0
     goal_switch_count: int = 0
+    target_switch_count: int = 0
+    frontier_target_switch_count: int = 0
+    frontier_semantic_switch_count: int = 0
 
     stuck_counter: int = 0
 
@@ -93,6 +111,11 @@ class WorkingMemory:
     first_visited_step: dict[Position, int] = field(default_factory=dict)
     total_world_cells: int = 0
     frontier_count: int = 0
+    reachable_frontier_count: int = 0
+    unreachable_frontier_count: int = 0
+    frontier_cluster_count: int = 0
+    reachable_frontier_cluster_count: int = 0
+    current_frontier_cluster_id: str | None = None
     newly_seen_count: int = 0
     newly_visited_count: int = 0
     first_full_seen_step: int | None = None
@@ -110,6 +133,7 @@ class WorkingMemory:
             target=self.current_goal_target,
             continuation_bonus=GOAL_CONTINUATION_BONUS,
             switch_margin=GOAL_SWITCH_MARGIN,
+            goal_id=self.current_goal_id,
         )
 
     def remember_selected_goal(
@@ -119,18 +143,38 @@ class WorkingMemory:
         if plan is None:
             self.current_goal_kind = None
             self.current_goal_target = None
+            self.current_goal_id = None
             self.current_goal_age = 0
             return
 
-        if self._matches_current_goal(plan):
+        next_goal_id = goal_id_for_plan(plan)
+        target_changed = self._target_changed(plan)
+        semantic_changed = not self._matches_current_goal(
+            plan=plan,
+            goal_id=next_goal_id,
+        )
+
+        if target_changed:
+            self.target_switch_count += 1
+
+            if self._frontier_involved(plan):
+                self.frontier_target_switch_count += 1
+
+        if not semantic_changed:
+            self.current_goal_target = plan.target
+            self.current_goal_id = next_goal_id
             self.current_goal_age += 1
             return
 
         if self.current_goal_kind is not None:
             self.goal_switch_count += 1
 
+            if self._frontier_involved(plan):
+                self.frontier_semantic_switch_count += 1
+
         self.current_goal_kind = plan.kind
         self.current_goal_target = plan.target
+        self.current_goal_id = next_goal_id
         self.current_goal_age = 1
 
     def record_step(
@@ -178,12 +222,42 @@ class WorkingMemory:
             step=step,
         )
 
-        self.frontier_count = len(
-            find_frontiers(
-                agent=agent,
-                width=width,
-                height=height,
-            )
+        raw_frontiers = find_frontiers(
+            agent=agent,
+            width=width,
+            height=height,
+        )
+        reachable_frontiers = find_reachable_frontiers(
+            agent=agent,
+            width=width,
+            height=height,
+        )
+        frontier_clusters = find_frontier_clusters(
+            agent=agent,
+            width=width,
+            height=height,
+        )
+        reachable_frontier_clusters = find_frontier_clusters(
+            agent=agent,
+            width=width,
+            height=height,
+            reachable_only=True,
+        )
+
+        self.frontier_count = len(raw_frontiers)
+        self.reachable_frontier_count = len(reachable_frontiers)
+        self.unreachable_frontier_count = max(
+            0,
+            self.frontier_count - self.reachable_frontier_count,
+        )
+        self.frontier_cluster_count = len(frontier_clusters)
+        self.reachable_frontier_cluster_count = len(
+            reachable_frontier_clusters
+        )
+        self.current_frontier_cluster_id = (
+            self.current_goal_id
+            if self.current_goal_kind is GoalKind.FRONTIER
+            else None
         )
 
         if (
@@ -213,8 +287,16 @@ class WorkingMemory:
                 else None
             ),
             current_goal_target=self.current_goal_target,
+            current_goal_id=self.current_goal_id,
             current_goal_age=self.current_goal_age,
             goal_switch_count=self.goal_switch_count,
+            target_switch_count=self.target_switch_count,
+            frontier_target_switch_count=(
+                self.frontier_target_switch_count
+            ),
+            frontier_semantic_switch_count=(
+                self.frontier_semantic_switch_count
+            ),
             recent_position_revisit_count=(
                 recent_duplicate_count(self.recent_positions)
             ),
@@ -241,19 +323,48 @@ class WorkingMemory:
                 self.total_world_cells,
             ),
             frontier_count=self.frontier_count,
+            reachable_frontier_count=self.reachable_frontier_count,
+            unreachable_frontier_count=self.unreachable_frontier_count,
+            frontier_cluster_count=self.frontier_cluster_count,
+            reachable_frontier_cluster_count=(
+                self.reachable_frontier_cluster_count
+            ),
+            current_frontier_cluster_id=self.current_frontier_cluster_id,
             newly_seen_count=self.newly_seen_count,
             newly_visited_count=self.newly_visited_count,
             first_full_seen_step=self.first_full_seen_step,
             first_full_visited_step=self.first_full_visited_step,
         )
 
-    def _matches_current_goal(
+    def _target_changed(
         self,
         plan: GoalPlan,
     ) -> bool:
         return (
+            self.current_goal_kind is not None
+            and (
+                self.current_goal_kind is not plan.kind
+                or self.current_goal_target != plan.target
+            )
+        )
+
+    def _matches_current_goal(
+        self,
+        plan: GoalPlan,
+        goal_id: str,
+    ) -> bool:
+        return (
             self.current_goal_kind is plan.kind
-            and self.current_goal_target == plan.target
+            and self.current_goal_id == goal_id
+        )
+
+    def _frontier_involved(
+        self,
+        plan: GoalPlan,
+    ) -> bool:
+        return (
+            self.current_goal_kind is GoalKind.FRONTIER
+            or plan.kind is GoalKind.FRONTIER
         )
 
     def _remember_event_position(
@@ -284,6 +395,18 @@ class WorkingMemory:
         self.stuck_counter = 0
 
 
+
+def goal_id_for_plan(plan: GoalPlan) -> str:
+    if plan.goal_id is not None:
+        return plan.goal_id
+
+    return target_goal_id(
+        kind=plan.kind,
+        target=plan.target,
+    )
+
+
+
 def recent_duplicate_count(
     positions: Iterable[Position],
 ) -> int:
@@ -299,6 +422,7 @@ def recent_duplicate_count(
     return duplicates
 
 
+
 def sequence_trend(
     values: Iterable[float],
 ) -> float:
@@ -308,6 +432,7 @@ def sequence_trend(
         return 0.0
 
     return sequence[-1] - sequence[0]
+
 
 
 def remember_first_steps(
@@ -325,6 +450,7 @@ def remember_first_steps(
         new_count += 1
 
     return new_count
+
 
 
 def safe_ratio(
