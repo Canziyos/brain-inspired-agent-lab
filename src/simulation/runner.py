@@ -54,6 +54,9 @@ def run_simulation(
             terminated=result.terminated,
             truncated=result.truncated,
             episodes=session.episodic_trace.episodes,
+            working_memory=session.working_memory,
+            world_width=config.world.width,
+            world_height=config.world.height,
         )
 
         show_run_views(
