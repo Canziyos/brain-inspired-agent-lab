@@ -78,4 +78,14 @@ class StepMetrics:
     goal_kind: str | None
     goal_target: Position | None
 
+    memory_goal_age: int
+    memory_goal_switch_count: int
+    memory_recent_revisit_count: int
+    memory_stuck_counter: int
+    memory_recent_rest_count: int
+    memory_energy_trend: float
+    memory_last_food_position: Position | None
+    memory_last_mystery_position: Position | None
+    memory_last_danger_position: Position | None
+
     outcome_model: OutcomeModelMetrics | None
