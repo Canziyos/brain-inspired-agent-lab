@@ -138,3 +138,70 @@ def test_far_goal_can_still_win_when_motivation_is_high() -> None:
     )
 
     assert far_score.total > near_score.total
+
+
+def test_low_energy_non_food_plan_gets_energy_risk() -> None:
+    agent = Agent(
+        x=0,
+        y=0,
+        energy=31.0,
+    )
+
+    plan = GoalPlan(
+        kind=GoalKind.MYSTERY,
+        target=(2, 0),
+        path=((0, 0), (1, 0), (2, 0)),
+    )
+
+    scored = score_goal_plan(
+        plan=plan,
+        agent=agent,
+        width=3,
+        height=1,
+        motivation=30.0,
+    )
+
+    assert scored.score.energy_risk > 0.0
+    assert scored.total < (
+        scored.score.motivation
+        + scored.score.information_gain
+        - scored.score.distance_cost
+    )
+
+
+def test_low_energy_food_plan_gets_urgency_bonus() -> None:
+    hungry_agent = Agent(
+        x=0,
+        y=0,
+        energy=31.0,
+    )
+    full_agent = Agent(
+        x=0,
+        y=0,
+        energy=90.0,
+    )
+
+    plan = GoalPlan(
+        kind=GoalKind.FOOD,
+        target=(1, 0),
+        path=((0, 0), (1, 0)),
+    )
+
+    hungry_score = score_goal_plan(
+        plan=plan,
+        agent=hungry_agent,
+        width=2,
+        height=1,
+        motivation=40.0,
+    )
+    full_score = score_goal_plan(
+        plan=plan,
+        agent=full_agent,
+        width=2,
+        height=1,
+        motivation=40.0,
+    )
+
+    assert hungry_score.score.energy_bonus > 0.0
+    assert full_score.score.energy_bonus == 0.0
+    assert hungry_score.total > full_score.total
