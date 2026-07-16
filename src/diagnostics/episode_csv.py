@@ -17,6 +17,7 @@ EPISODE_CSV_FIELDNAMES = (
     "goal_kind",
     "goal_target_x",
     "goal_target_y",
+    "goal_id",
     "action",
     "reward",
     "event",
@@ -30,6 +31,7 @@ EPISODE_CSV_FIELDNAMES = (
     "choices_agree",
     "imagination_agrees",
 )
+
 
 
 def write_episodes_csv(
@@ -57,6 +59,7 @@ def write_episodes_csv(
             writer.writerow(episode_to_csv_row(episode))
 
 
+
 def episode_to_csv_row(episode: Episode) -> dict[str, Any]:
     goal_target_x, goal_target_y = position_to_csv(
         episode.goal_target
@@ -72,6 +75,7 @@ def episode_to_csv_row(episode: Episode) -> dict[str, Any]:
         "goal_kind": optional_csv(episode.goal_kind),
         "goal_target_x": goal_target_x,
         "goal_target_y": goal_target_y,
+        "goal_id": optional_csv(episode.goal_id),
         "action": format_action(episode.action),
         "reward": episode.reward,
         "event": enum_csv(episode.event),
@@ -87,6 +91,7 @@ def episode_to_csv_row(episode: Episode) -> dict[str, Any]:
         "choices_agree": episode.choices_agree,
         "imagination_agrees": episode.imagination_agrees,
     }
+
 
 
 def position_to_csv(
