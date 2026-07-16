@@ -53,6 +53,7 @@ def run_simulation(
             run_directory=run_directory,
             terminated=result.terminated,
             truncated=result.truncated,
+            episodes=session.episodic_trace.episodes,
         )
 
         show_run_views(
