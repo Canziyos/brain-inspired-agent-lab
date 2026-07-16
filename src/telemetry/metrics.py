@@ -91,6 +91,12 @@ class StepMetrics:
 
     episodic_prior_episode_count: int
     episodic_same_run_episode_count: int
+
+    episodic_same_run_action: Action | None
+    episodic_same_run_is_usable: bool
+    episodic_same_run_agrees_with_rule: bool
+    episodic_same_run_agrees_with_imagination: bool
+
     episodic_prior_action: Action | None
     episodic_prior_is_usable: bool
     episodic_prior_agrees_with_rule: bool
