@@ -2,8 +2,11 @@ from src.core.actions import Action, ActionEvaluation
 from src.core.agent import Agent
 from src.core.dynamics_types import EventType
 from src.memory.episode_retrieval import (
+    MAX_SIMILAR_EPISODES_PER_ACTION,
     NO_EPISODIC_ADVICE,
+    action_episode_stats,
     advise_from_episodes,
+    build_episode_query,
 )
 from src.memory.episode_trace import Episode
 from src.planning.goal_planner import GoalKind, GoalPlan
@@ -17,9 +20,10 @@ def episode(
     energy: float = 50.0,
     curiosity: float = 20.0,
     goal_id: str | None = "frontier:1:1",
+    step: int = 0,
 ) -> Episode:
     return Episode(
-        step=0,
+        step=step,
         position_before=position_before,
         state_before=(energy, 100.0, curiosity),
         goal_kind="frontier",
@@ -53,11 +57,13 @@ def evaluations() -> tuple[ActionEvaluation, ...]:
     )
 
 
-def test_no_episodes_produces_no_advice() -> None:
-    agent = Agent(x=1, y=1, energy=50.0, curiosity=20.0)
+def agent() -> Agent:
+    return Agent(x=1, y=1, energy=50.0, curiosity=20.0)
 
+
+def test_no_episodes_produces_no_advice() -> None:
     advice = advise_from_episodes(
-        agent=agent,
+        agent=agent(),
         plan=plan(),
         evaluations=evaluations(),
         episodes=(),
@@ -69,10 +75,8 @@ def test_no_episodes_produces_no_advice() -> None:
 
 
 def test_episodic_advisor_prefers_action_with_better_memory() -> None:
-    agent = Agent(x=1, y=1, energy=50.0, curiosity=20.0)
-
     advice = advise_from_episodes(
-        agent=agent,
+        agent=agent(),
         plan=plan(),
         evaluations=evaluations(),
         episodes=(
@@ -95,10 +99,8 @@ def test_episodic_advisor_prefers_action_with_better_memory() -> None:
 
 
 def test_episodic_advisor_marks_enough_evidence_as_usable() -> None:
-    agent = Agent(x=1, y=1, energy=50.0, curiosity=20.0)
-
     advice = advise_from_episodes(
-        agent=agent,
+        agent=agent(),
         plan=plan(),
         evaluations=evaluations(),
         episodes=(
@@ -118,10 +120,8 @@ def test_episodic_advisor_marks_enough_evidence_as_usable() -> None:
 
 
 def test_episodic_advisor_reports_danger_risk() -> None:
-    agent = Agent(x=1, y=1, energy=50.0, curiosity=20.0)
-
     advice = advise_from_episodes(
-        agent=agent,
+        agent=agent(),
         plan=plan(),
         evaluations=evaluations(),
         episodes=(
@@ -145,10 +145,8 @@ def test_episodic_advisor_reports_danger_risk() -> None:
 
 
 def test_episodic_advisor_ignores_actions_not_currently_available() -> None:
-    agent = Agent(x=1, y=1, energy=50.0, curiosity=20.0)
-
     advice = advise_from_episodes(
-        agent=agent,
+        agent=agent(),
         plan=plan(),
         evaluations=(ActionEvaluation(Action.MOVE_EAST, 10.0),),
         episodes=(
@@ -162,10 +160,8 @@ def test_episodic_advisor_ignores_actions_not_currently_available() -> None:
 
 
 def test_rare_food_reward_is_dampened_until_repeated() -> None:
-    agent = Agent(x=1, y=1, energy=50.0, curiosity=20.0)
-
     advice = advise_from_episodes(
-        agent=agent,
+        agent=agent(),
         plan=plan(),
         evaluations=evaluations(),
         episodes=(
@@ -183,3 +179,37 @@ def test_rare_food_reward_is_dampened_until_repeated() -> None:
     assert advice.has_advice
     assert advice.expected_reward < advice.raw_expected_reward
     assert "rare_reward_event_dampened" in advice.reliability_reason
+
+
+def test_action_stats_use_only_top_similar_matches_per_action() -> None:
+    query = build_episode_query(
+        agent=agent(),
+        plan=plan(),
+        evaluations=(ActionEvaluation(Action.MOVE_EAST, 10.0),),
+    )
+    old_distant_episodes = tuple(
+        episode(
+            Action.MOVE_EAST,
+            reward=-100.0,
+            position_before=(10, 10),
+            step=index,
+        )
+        for index in range(40)
+    )
+    recent_similar_episodes = tuple(
+        episode(
+            Action.MOVE_EAST,
+            reward=2.0,
+            position_before=(1, 1),
+            step=100 + index,
+        )
+        for index in range(MAX_SIMILAR_EPISODES_PER_ACTION)
+    )
+
+    (stats,) = action_episode_stats(
+        query=query,
+        episodes=old_distant_episodes + recent_similar_episodes,
+    )
+
+    assert stats.match_count == MAX_SIMILAR_EPISODES_PER_ACTION
+    assert stats.raw_expected_reward == 2.0
