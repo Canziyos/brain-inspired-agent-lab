@@ -78,8 +78,12 @@ class StepMetrics:
     goal_kind: str | None
     goal_target: Position | None
 
+    memory_goal_id: str | None
     memory_goal_age: int
     memory_goal_switch_count: int
+    memory_target_switch_count: int
+    memory_frontier_target_switch_count: int
+    memory_frontier_semantic_switch_count: int
     memory_recent_revisit_count: int
     memory_stuck_counter: int
     memory_recent_rest_count: int
@@ -95,6 +99,11 @@ class StepMetrics:
     coverage_seen_ratio: float
     coverage_visited_ratio: float
     coverage_frontier_count: int
+    coverage_reachable_frontier_count: int
+    coverage_unreachable_frontier_count: int
+    coverage_frontier_cluster_count: int
+    coverage_reachable_frontier_cluster_count: int
+    coverage_current_frontier_cluster_id: str | None
     coverage_newly_seen_count: int
     coverage_newly_visited_count: int
     coverage_first_full_seen_step: int | None
