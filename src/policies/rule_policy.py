@@ -23,7 +23,11 @@ EMPTY_EXPLORE_SCORE = 15.0
 
 FRONTIER_TRAVEL_SCORE = 14.0
 MYSTERY_TRAVEL_SCORE = 18.0
+
 REST_ALLOWED_BELOW_ENERGY = LOW_ENERGY
+REST_RECOVERY_TARGET_ENERGY = 40.0
+REST_RECOVERY_SCORE = 35.0
+
 PLANNED_ACTION_MIN_SCORE = 30.0
 
 
@@ -112,10 +116,19 @@ def evaluate_observation(
     return None
 
 
+def rest_score(agent: Agent) -> float:
+    base_score = rest_motivation(agent.snapshot())
+
+    if agent.energy < REST_RECOVERY_TARGET_ENERGY:
+        return max(base_score, REST_RECOVERY_SCORE)
+
+    return base_score
+
+
 def rest_evaluation(agent: Agent) -> ActionEvaluation:
     return ActionEvaluation(
         action=Action.REST,
-        policy_score=rest_motivation(agent.snapshot()),
+        policy_score=rest_score(agent),
         rationale="recover energy",
     )
 
@@ -127,7 +140,7 @@ def should_consider_rest(
     if not movement_evaluations:
         return True
 
-    return agent.energy < REST_ALLOWED_BELOW_ENERGY
+    return agent.energy < REST_RECOVERY_TARGET_ENERGY
 
 
 def planned_action_matches(
