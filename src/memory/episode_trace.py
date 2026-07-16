@@ -20,6 +20,7 @@ class Episode:
 
     goal_kind: str | None
     goal_target: Position | None
+    goal_id: str | None
     action: Action
 
     reward: float
@@ -48,6 +49,7 @@ class EpisodicTrace:
         return len(self.episodes)
 
 
+
 def build_episode(
     step: int,
     position_before: Position,
@@ -74,6 +76,11 @@ def build_episode(
         ),
         goal_target=(
             plan.target
+            if plan is not None
+            else None
+        ),
+        goal_id=(
+            plan.goal_id
             if plan is not None
             else None
         ),
