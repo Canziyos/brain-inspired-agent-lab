@@ -15,7 +15,8 @@ from src.learning.samples import (
     RewardTrainingSample,
     TransitionTrainingSample,
 )
-from src.memory.episode_trace import EpisodicTrace
+from src.memory.episode_store import LoadedEpisodeStore, load_episode_store
+from src.memory.episode_trace import Episode, EpisodicTrace
 from src.memory.working_memory import WorkingMemory
 
 
@@ -34,10 +35,13 @@ class SimulationSession:
 
     working_memory: WorkingMemory
     episodic_trace: EpisodicTrace
+    prior_episodes: tuple[Episode, ...]
+    loaded_episode_store: LoadedEpisodeStore
 
     policy_rng: random.Random
     reward_training_rng: random.Random
     outcome_training_rng: random.Random
+
 
 
 def create_simulation_session(
@@ -54,6 +58,8 @@ def create_simulation_session(
     outcome_training_rng = random.Random(
         config.runtime.random_seed + 3
     )
+
+    loaded_episode_store = load_episode_store(config)
 
     env = BabyViceGridEnv(config=config)
     env.reset(seed=config.runtime.random_seed)
@@ -87,6 +93,8 @@ def create_simulation_session(
         outcome_neural_state=outcome_neural_state,
         working_memory=WorkingMemory(),
         episodic_trace=EpisodicTrace(),
+        prior_episodes=loaded_episode_store.episodes,
+        loaded_episode_store=loaded_episode_store,
         policy_rng=policy_rng,
         reward_training_rng=reward_training_rng,
         outcome_training_rng=outcome_training_rng,
