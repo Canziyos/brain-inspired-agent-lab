@@ -1,4 +1,4 @@
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from enum import Enum
 
@@ -10,7 +10,7 @@ from src.core.motivation import (
 from src.core.world import CellType
 from src.planning.frontier_planner import (
     Position,
-    find_frontiers,
+    find_frontier_clusters,
     known_traversable_cells,
     shortest_path,
 )
@@ -35,6 +35,7 @@ class GoalPlan:
     target: Position
     path: tuple[Position, ...]
     score: float | None = None
+    goal_id: str | None = None
 
     @property
     def next_step(self) -> Position:
@@ -52,6 +53,7 @@ class GoalCandidate:
     kind: GoalKind
     targets: frozenset[Position]
     priority: float
+    target_goal_ids: Mapping[Position, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,12 +62,14 @@ class GoalPreference:
     target: Position
     continuation_bonus: float
     switch_margin: float
+    goal_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class PreferredGoalChoice:
     plan: GoalPlan
     total: float
+
 
 
 def known_object_targets(
@@ -79,6 +83,30 @@ def known_object_targets(
     )
 
 
+
+def target_goal_id(
+    kind: GoalKind,
+    target: Position,
+) -> str:
+    x, y = target
+    return f"{kind.value}:{x}:{y}"
+
+
+
+def target_goal_ids(
+    kind: GoalKind,
+    targets: Collection[Position],
+) -> dict[Position, str]:
+    return {
+        target: target_goal_id(
+            kind=kind,
+            target=target,
+        )
+        for target in targets
+    }
+
+
+
 def build_plan(
     kind: GoalKind,
     targets: Collection[Position],
@@ -86,6 +114,7 @@ def build_plan(
     traversable: set[Position],
     width: int,
     height: int,
+    goal_id: str | None = None,
 ) -> GoalPlan | None:
     target_set = set(targets)
 
@@ -107,7 +136,9 @@ def build_plan(
         kind=kind,
         target=path[-1],
         path=tuple(path),
+        goal_id=goal_id,
     )
+
 
 
 def build_scored_plans(
@@ -127,6 +158,10 @@ def build_scored_plans(
             traversable=traversable,
             width=width,
             height=height,
+            goal_id=goal_id_for_target(
+                candidate=candidate,
+                target=target,
+            ),
         )
 
         if plan is None:
@@ -145,6 +180,24 @@ def build_scored_plans(
     return tuple(scored_plans)
 
 
+
+def goal_id_for_target(
+    candidate: GoalCandidate,
+    target: Position,
+) -> str:
+    if candidate.target_goal_ids is not None:
+        goal_id = candidate.target_goal_ids.get(target)
+
+        if goal_id is not None:
+            return goal_id
+
+    return target_goal_id(
+        kind=candidate.kind,
+        target=target,
+    )
+
+
+
 def goal_candidates(
     agent: Agent,
     width: int,
@@ -152,35 +205,67 @@ def goal_candidates(
 ) -> tuple[GoalCandidate, ...]:
     state = agent.snapshot()
 
+    food_targets = known_object_targets(
+        agent,
+        CellType.FOOD,
+    )
+    mystery_targets = known_object_targets(
+        agent,
+        CellType.MYSTERY,
+    )
+    frontier_goal_ids_by_target = frontier_goal_id_mapping(
+        agent=agent,
+        width=width,
+        height=height,
+    )
+    frontier_targets = frozenset(frontier_goal_ids_by_target)
+
     return (
         GoalCandidate(
             kind=GoalKind.FOOD,
-            targets=known_object_targets(
-                agent,
-                CellType.FOOD,
-            ),
+            targets=food_targets,
             priority=food_motivation(state),
+            target_goal_ids=target_goal_ids(
+                kind=GoalKind.FOOD,
+                targets=food_targets,
+            ),
         ),
         GoalCandidate(
             kind=GoalKind.MYSTERY,
-            targets=known_object_targets(
-                agent,
-                CellType.MYSTERY,
-            ),
+            targets=mystery_targets,
             priority=mystery_motivation(state),
+            target_goal_ids=target_goal_ids(
+                kind=GoalKind.MYSTERY,
+                targets=mystery_targets,
+            ),
         ),
         GoalCandidate(
             kind=GoalKind.FRONTIER,
-            targets=frozenset(
-                find_frontiers(
-                    agent,
-                    width,
-                    height,
-                )
-            ),
+            targets=frontier_targets,
             priority=FRONTIER_MOTIVATION_SCORE,
+            target_goal_ids=frontier_goal_ids_by_target,
         ),
     )
+
+
+
+def frontier_goal_id_mapping(
+    agent: Agent,
+    width: int,
+    height: int,
+) -> dict[Position, str]:
+    mapping: dict[Position, str] = {}
+
+    for cluster in find_frontier_clusters(
+        agent=agent,
+        width=width,
+        height=height,
+    ):
+        for cell in cluster.cells:
+            mapping[cell] = cluster.id
+
+    return mapping
+
 
 
 def ranked_goal_candidates(
@@ -199,6 +284,7 @@ def ranked_goal_candidates(
             reverse=True,
         )
     )
+
 
 
 def select_goal_plan(
@@ -238,7 +324,9 @@ def select_goal_plan(
         target=choice.plan.target,
         path=choice.plan.path,
         score=choice.total,
+        goal_id=choice.plan.goal_id,
     )
+
 
 
 def choose_preferred_goal(
@@ -289,6 +377,7 @@ def choose_preferred_goal(
     )
 
 
+
 def find_preferred_scored_goal(
     scored_plans: Collection[ScoredGoalPlan],
     preference: GoalPreference,
@@ -303,14 +392,19 @@ def find_preferred_scored_goal(
     return None
 
 
+
 def goals_match(
     plan: GoalPlan,
     preference: GoalPreference,
 ) -> bool:
-    return (
-        plan.kind is preference.kind
-        and plan.target == preference.target
-    )
+    if plan.kind is not preference.kind:
+        return False
+
+    if plan.goal_id is not None and preference.goal_id is not None:
+        return plan.goal_id == preference.goal_id
+
+    return plan.target == preference.target
+
 
 
 def has_reachable_goal(
@@ -323,6 +417,7 @@ def has_reachable_goal(
         width=width,
         height=height,
     ) is not None
+
 
 
 def is_task_complete(
