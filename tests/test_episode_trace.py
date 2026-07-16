@@ -7,12 +7,14 @@ from src.memory.episode_trace import (
 from src.planning.goal_planner import GoalKind, GoalPlan
 
 
+
 def test_episodic_trace_records_passive_episode() -> None:
     trace = EpisodicTrace()
     plan = GoalPlan(
         kind=GoalKind.MYSTERY,
         target=(2, 0),
         path=((1, 0), (2, 0)),
+        goal_id="mystery:2:0",
     )
 
     episode = build_episode(
@@ -36,8 +38,10 @@ def test_episodic_trace_records_passive_episode() -> None:
     assert len(trace) == 1
     assert trace.episodes[0].goal_kind == "mystery"
     assert trace.episodes[0].goal_target == (2, 0)
+    assert trace.episodes[0].goal_id == "mystery:2:0"
     assert trace.episodes[0].action is Action.MOVE_EAST
     assert trace.episodes[0].event is EventType.DISCOVERED_MYSTERY
+
 
 
 def test_episode_without_goal_is_allowed() -> None:
@@ -59,3 +63,4 @@ def test_episode_without_goal_is_allowed() -> None:
 
     assert episode.goal_kind is None
     assert episode.goal_target is None
+    assert episode.goal_id is None
