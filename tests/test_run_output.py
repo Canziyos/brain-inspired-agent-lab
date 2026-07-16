@@ -56,10 +56,16 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
             episodic_prior_episode_count=100,
             episodic_same_run_episode_count=3,
             episodic_same_run_action=Action.MOVE_EAST,
+            episodic_same_run_expected_reward=1.5,
+            episodic_same_run_confidence=0.4,
+            episodic_same_run_reliability=0.5,
             episodic_same_run_is_usable=True,
             episodic_same_run_agrees_with_rule=True,
             episodic_same_run_agrees_with_imagination=True,
             episodic_prior_action=Action.MOVE_EAST,
+            episodic_prior_expected_reward=1.25,
+            episodic_prior_confidence=0.45,
+            episodic_prior_reliability=0.55,
             episodic_prior_is_usable=True,
             episodic_prior_agrees_with_rule=True,
             episodic_prior_agrees_with_imagination=True,
@@ -164,10 +170,16 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
     assert row["episodic_prior_episode_count"] == "100"
     assert row["episodic_same_run_episode_count"] == "3"
     assert row["episodic_same_run_action"] == "move move_east (+1, +0)"
+    assert row["episodic_same_run_expected_reward"] == "1.5"
+    assert row["episodic_same_run_confidence"] == "0.4"
+    assert row["episodic_same_run_reliability"] == "0.5"
     assert row["episodic_same_run_is_usable"] == "True"
     assert row["episodic_same_run_agrees_with_rule"] == "True"
     assert row["episodic_same_run_agrees_with_imagination"] == "True"
     assert row["episodic_prior_action"] == "move move_east (+1, +0)"
+    assert row["episodic_prior_expected_reward"] == "1.25"
+    assert row["episodic_prior_confidence"] == "0.45"
+    assert row["episodic_prior_reliability"] == "0.55"
     assert row["episodic_prior_is_usable"] == "True"
     assert row["episodic_prior_agrees_with_rule"] == "True"
     assert row["episodic_prior_agrees_with_imagination"] == "True"
