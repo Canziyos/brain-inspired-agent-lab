@@ -67,6 +67,10 @@ Bad signs:
 - `prior_usable_rule_agreement` collapses toward raw agreement
 - `prior_usable_reward_delta` becomes zero or negative
 
+## Validation target
+
+Run the capacity sweep again and compare the new CSV with the previous loose top-K output. The strict retrieval version should reduce the high-cap `prior_usable_rate` while keeping useful memories visibly better than weak memories.
+
 ## Still shadow mode
 
 This does not let memory control Baby Vice.
