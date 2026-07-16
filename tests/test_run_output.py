@@ -38,6 +38,20 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
             rule_imagined_reward=7.25,
             rule_imagined_utility=18.625,
             imagination_agrees=True,
+            episodic_action=Action.MOVE_EAST,
+            episodic_raw_expected_reward=4.0,
+            episodic_expected_reward=2.5,
+            episodic_confidence=0.6,
+            episodic_reliability=0.7,
+            episodic_match_count=5,
+            episodic_best_event=EventType.DISCOVERED_MYSTERY,
+            episodic_risk_hit_danger=0.0,
+            episodic_has_advice=True,
+            episodic_is_usable=True,
+            episodic_agrees_with_rule=True,
+            episodic_agrees_with_imagination=True,
+            episodic_reliability_reason="usable",
+            episodic_rationale="episodic advisor test rationale",
             termination_reason=None,
             goal_kind="mystery",
             goal_target=(1, 2),
@@ -121,6 +135,21 @@ def test_write_steps_csv_writes_step_metrics(tmp_path) -> None:
     assert row["choices_agree"] == "True"
     assert row["imagination_action"] == "move move_east (+1, +0)"
     assert row["imagination_agrees"] == "True"
+
+    assert row["episodic_action"] == "move move_east (+1, +0)"
+    assert row["episodic_raw_expected_reward"] == "4.0"
+    assert row["episodic_expected_reward"] == "2.5"
+    assert row["episodic_confidence"] == "0.6"
+    assert row["episodic_reliability"] == "0.7"
+    assert row["episodic_match_count"] == "5"
+    assert row["episodic_best_event"] == "discovered_mystery"
+    assert row["episodic_risk_hit_danger"] == "0.0"
+    assert row["episodic_has_advice"] == "True"
+    assert row["episodic_is_usable"] == "True"
+    assert row["episodic_agrees_with_rule"] == "True"
+    assert row["episodic_agrees_with_imagination"] == "True"
+    assert row["episodic_reliability_reason"] == "usable"
+    assert row["episodic_rationale"] == "episodic advisor test rationale"
 
     assert row["memory_goal_id"] == "mystery:1:2"
     assert row["memory_goal_age"] == "4"

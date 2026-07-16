@@ -86,6 +86,7 @@ def run_simulation_step(
         ),
         policy_rng=policy_rng,
         working_memory=working_memory,
+        episodic_episodes=episodic_trace.episodes,
     )
 
     reset_outcome_prediction = predict_from_reset_state(
