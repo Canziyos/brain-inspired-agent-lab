@@ -56,6 +56,7 @@ class StepDecision:
     imagination_agrees: bool
 
     episodic_advice: EpisodicActionAdvice
+    same_run_episodic_advice: EpisodicActionAdvice
     prior_episodic_advice: EpisodicActionAdvice
     prior_episode_count: int
     same_run_episode_count: int
@@ -110,6 +111,13 @@ def choose_step_decision(
         plan=plan,
         evaluations=evaluations,
         episodes=combined_episodes,
+    )
+
+    same_run_episodic_advice = advise_from_episodes(
+        agent=agent,
+        plan=plan,
+        evaluations=evaluations,
+        episodes=same_run_episodic_episodes,
     )
 
     prior_episodic_advice = advise_from_episodes(
@@ -174,6 +182,7 @@ def choose_step_decision(
             rule_choice.action is imagined_choice.action
         ),
         episodic_advice=episodic_advice,
+        same_run_episodic_advice=same_run_episodic_advice,
         prior_episodic_advice=prior_episodic_advice,
         prior_episode_count=len(prior_episodic_episodes),
         same_run_episode_count=len(same_run_episodic_episodes),
