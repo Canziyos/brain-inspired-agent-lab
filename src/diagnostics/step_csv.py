@@ -162,6 +162,22 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
             metrics.episodic_reliability_reason
         ),
         "episodic_rationale": metrics.episodic_rationale,
+        "episodic_prior_episode_count": (
+            metrics.episodic_prior_episode_count
+        ),
+        "episodic_same_run_episode_count": (
+            metrics.episodic_same_run_episode_count
+        ),
+        "episodic_prior_action": optional_action_csv(
+            metrics.episodic_prior_action
+        ),
+        "episodic_prior_is_usable": metrics.episodic_prior_is_usable,
+        "episodic_prior_agrees_with_rule": (
+            metrics.episodic_prior_agrees_with_rule
+        ),
+        "episodic_prior_agrees_with_imagination": (
+            metrics.episodic_prior_agrees_with_imagination
+        ),
         "termination_reason": optional_csv(
             metrics.termination_reason
         ),
