@@ -9,6 +9,7 @@ from src.telemetry.metrics import (
 )
 
 
+
 def build_step_metrics(
     step: int,
     agent: Agent,
@@ -78,8 +79,16 @@ def build_step_metrics(
         goal_kind=goal_kind,
         goal_target=goal_target,
 
+        memory_goal_id=memory.current_goal_id,
         memory_goal_age=memory.current_goal_age,
         memory_goal_switch_count=memory.goal_switch_count,
+        memory_target_switch_count=memory.target_switch_count,
+        memory_frontier_target_switch_count=(
+            memory.frontier_target_switch_count
+        ),
+        memory_frontier_semantic_switch_count=(
+            memory.frontier_semantic_switch_count
+        ),
         memory_recent_revisit_count=(
             memory.recent_position_revisit_count
         ),
@@ -97,6 +106,19 @@ def build_step_metrics(
         coverage_seen_ratio=memory.seen_ratio,
         coverage_visited_ratio=memory.visited_ratio,
         coverage_frontier_count=memory.frontier_count,
+        coverage_reachable_frontier_count=(
+            memory.reachable_frontier_count
+        ),
+        coverage_unreachable_frontier_count=(
+            memory.unreachable_frontier_count
+        ),
+        coverage_frontier_cluster_count=memory.frontier_cluster_count,
+        coverage_reachable_frontier_cluster_count=(
+            memory.reachable_frontier_cluster_count
+        ),
+        coverage_current_frontier_cluster_id=(
+            memory.current_frontier_cluster_id
+        ),
         coverage_newly_seen_count=memory.newly_seen_count,
         coverage_newly_visited_count=memory.newly_visited_count,
         coverage_first_full_seen_step=(
