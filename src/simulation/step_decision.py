@@ -9,6 +9,7 @@ from src.core.perception import Observation
 from src.core.world import World
 from src.learning.outcome import RateRecurrentOutcomeModel
 from src.learning.reward_network import ImmediateRewardNetwork
+from src.memory.working_memory import WorkingMemory
 from src.planning.goal_planner import (
     GoalPlan,
     select_goal_plan,
@@ -61,6 +62,7 @@ def choose_step_decision(
     outcome_neural_state: torch.Tensor,
     imagination_reward_weight: float,
     policy_rng: random.Random,
+    working_memory: WorkingMemory,
 ) -> StepDecision:
     observations = tuple(
         agent.sense(world)
@@ -72,7 +74,10 @@ def choose_step_decision(
         agent=agent,
         width=width,
         height=height,
+        preference=working_memory.goal_preference(),
     )
+
+    working_memory.remember_selected_goal(plan)
 
     evaluations = tuple(
         evaluate_actions(
