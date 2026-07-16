@@ -18,7 +18,9 @@ STATE_HEALTH_SCALE = 100.0
 STATE_CURIOSITY_SCALE = 50.0
 SIMILARITY_PRIOR_WEIGHT = 3.0
 CONFIDENCE_MATCH_SCALE = 8.0
-MAX_SIMILAR_EPISODES_PER_ACTION = 32
+MAX_SIMILAR_EPISODES_PER_ACTION = 8
+MIN_EPISODE_SIMILARITY_WEIGHT = 0.08
+MIN_RELATIVE_SIMILARITY_WEIGHT = 0.35
 
 MIN_USABLE_MATCH_COUNT = 3
 MIN_USABLE_CONFIDENCE = 0.35
@@ -314,19 +316,35 @@ def collect_top_similar_matches(
             )
         )
 
-    return {
-        action: tuple(
-            sorted(
-                matches,
-                key=lambda match: (
-                    match.weight,
-                    match.episode.step,
-                ),
-                reverse=True,
-            )[:MAX_SIMILAR_EPISODES_PER_ACTION]
+    selected_by_action: dict[Action, tuple[WeightedEpisodeMatch, ...]] = {}
+
+    for action, matches in matches_by_action.items():
+        ranked_matches = sorted(
+            matches,
+            key=lambda match: (
+                match.weight,
+                match.episode.step,
+            ),
+            reverse=True,
         )
-        for action, matches in matches_by_action.items()
-    }
+        if not ranked_matches:
+            continue
+
+        strongest_weight = ranked_matches[0].weight
+        similarity_floor = max(
+            MIN_EPISODE_SIMILARITY_WEIGHT,
+            strongest_weight * MIN_RELATIVE_SIMILARITY_WEIGHT,
+        )
+        selected = tuple(
+            match
+            for match in ranked_matches
+            if match.weight >= similarity_floor
+        )[:MAX_SIMILAR_EPISODES_PER_ACTION]
+
+        if selected:
+            selected_by_action[action] = selected
+
+    return selected_by_action
 
 
 def episode_similarity_weight(
@@ -577,6 +595,8 @@ def advice_rationale(
         f"common_event={event_text}, "
         f"danger_risk={stats.risk_hit_danger:.3f}, "
         f"max_matches_per_action={MAX_SIMILAR_EPISODES_PER_ACTION}, "
+        f"min_similarity_weight={MIN_EPISODE_SIMILARITY_WEIGHT:.3f}, "
+        f"min_relative_similarity={MIN_RELATIVE_SIMILARITY_WEIGHT:.3f}, "
         f"reason={reliability_reason}"
     )
 
