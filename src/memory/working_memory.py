@@ -8,6 +8,7 @@ from typing import Deque, TypeAlias
 from src.core.actions import Action
 from src.core.agent import Agent
 from src.core.dynamics_types import EventType
+from src.planning.frontier_planner import find_frontiers
 from src.planning.goal_planner import (
     GoalKind,
     GoalPlan,
@@ -46,6 +47,18 @@ class WorkingMemorySnapshot:
     last_mystery_position: Position | None
     last_danger_position: Position | None
 
+    total_world_cells: int
+    seen_cell_count: int
+    visited_cell_count: int
+    unseen_cell_count: int
+    seen_ratio: float
+    visited_ratio: float
+    frontier_count: int
+    newly_seen_count: int
+    newly_visited_count: int
+    first_full_seen_step: int | None
+    first_full_visited_step: int | None
+
 
 @dataclass(slots=True)
 class WorkingMemory:
@@ -75,6 +88,15 @@ class WorkingMemory:
     last_food_position: Position | None = None
     last_mystery_position: Position | None = None
     last_danger_position: Position | None = None
+
+    first_seen_step: dict[Position, int] = field(default_factory=dict)
+    first_visited_step: dict[Position, int] = field(default_factory=dict)
+    total_world_cells: int = 0
+    frontier_count: int = 0
+    newly_seen_count: int = 0
+    newly_visited_count: int = 0
+    first_full_seen_step: int | None = None
+    first_full_visited_step: int | None = None
 
     def goal_preference(self) -> GoalPreference | None:
         if (
@@ -130,7 +152,60 @@ class WorkingMemory:
         )
         self._update_stuck_counter()
 
+    def update_coverage(
+        self,
+        step: int,
+        agent: Agent,
+        width: int,
+        height: int,
+    ) -> None:
+        if width <= 0 or height <= 0:
+            raise ValueError("World dimensions must be positive.")
+
+        self.total_world_cells = width * height
+
+        seen_positions = set(agent.known_cells) | set(agent.visited)
+        visited_positions = set(agent.visited)
+
+        self.newly_seen_count = remember_first_steps(
+            first_steps=self.first_seen_step,
+            positions=seen_positions,
+            step=step,
+        )
+        self.newly_visited_count = remember_first_steps(
+            first_steps=self.first_visited_step,
+            positions=visited_positions,
+            step=step,
+        )
+
+        self.frontier_count = len(
+            find_frontiers(
+                agent=agent,
+                width=width,
+                height=height,
+            )
+        )
+
+        if (
+            self.first_full_seen_step is None
+            and len(self.first_seen_step) >= self.total_world_cells
+        ):
+            self.first_full_seen_step = step
+
+        if (
+            self.first_full_visited_step is None
+            and len(self.first_visited_step) >= self.total_world_cells
+        ):
+            self.first_full_visited_step = step
+
     def snapshot(self) -> WorkingMemorySnapshot:
+        seen_cell_count = len(self.first_seen_step)
+        visited_cell_count = len(self.first_visited_step)
+        unseen_cell_count = max(
+            0,
+            self.total_world_cells - seen_cell_count,
+        )
+
         return WorkingMemorySnapshot(
             current_goal_kind=(
                 self.current_goal_kind.value
@@ -153,6 +228,23 @@ class WorkingMemory:
             last_food_position=self.last_food_position,
             last_mystery_position=self.last_mystery_position,
             last_danger_position=self.last_danger_position,
+            total_world_cells=self.total_world_cells,
+            seen_cell_count=seen_cell_count,
+            visited_cell_count=visited_cell_count,
+            unseen_cell_count=unseen_cell_count,
+            seen_ratio=safe_ratio(
+                seen_cell_count,
+                self.total_world_cells,
+            ),
+            visited_ratio=safe_ratio(
+                visited_cell_count,
+                self.total_world_cells,
+            ),
+            frontier_count=self.frontier_count,
+            newly_seen_count=self.newly_seen_count,
+            newly_visited_count=self.newly_visited_count,
+            first_full_seen_step=self.first_full_seen_step,
+            first_full_visited_step=self.first_full_visited_step,
         )
 
     def _matches_current_goal(
@@ -216,3 +308,30 @@ def sequence_trend(
         return 0.0
 
     return sequence[-1] - sequence[0]
+
+
+def remember_first_steps(
+    first_steps: dict[Position, int],
+    positions: Iterable[Position],
+    step: int,
+) -> int:
+    new_count = 0
+
+    for position in positions:
+        if position in first_steps:
+            continue
+
+        first_steps[position] = step
+        new_count += 1
+
+    return new_count
+
+
+def safe_ratio(
+    numerator: int,
+    denominator: int,
+) -> float:
+    if denominator <= 0:
+        return 0.0
+
+    return numerator / denominator
