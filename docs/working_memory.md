@@ -42,6 +42,23 @@ target_switches        = changes in exact coordinate target
 
 So Baby Vice is not punished for a frontier boundary sliding one tile like an idiot cloud.
 
+## Frontier reachability and clusters
+
+The frontier planner now separates:
+
+```text
+frontier_count
+reachable_frontier_count
+unreachable_frontier_count
+frontier_cluster_count
+reachable_frontier_cluster_count
+current_frontier_cluster_id
+```
+
+A raw frontier means a known traversable cell touches unknown space. A reachable frontier means Baby Vice can actually path to it through known traversable space.
+
+This is important because a run can finish all reachable goals while still having a few raw frontier cells near unknown space. Those leftover cells should not be confused with useful exploration opportunities.
+
 ## Perception coverage diagnostics
 
 Baby Vice currently senses only adjacent cells. Coverage diagnostics separate three different concepts:
@@ -76,6 +93,8 @@ The episodic trace records one row per step:
 ```text
 state before -> goal -> action -> event/reward -> state after
 ```
+
+Episodes also record `goal_id`, so later episodic retrieval can compare semantic goal identities rather than only coordinate targets.
 
 This is shadow-mode memory only. It does not retrieve episodes and does not challenge the symbolic policy yet.
 
