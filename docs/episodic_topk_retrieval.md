@@ -15,6 +15,8 @@ large prior-memory caps make advice saturate
 
 A global memory cap is useful as a diagnostic, but it is not the right cognitive mechanism. Baby Vice should be able to keep a large notebook while attending only to the most relevant entries for the current situation.
 
+The first top-K attempt used a fairly generous cap and did not materially reduce saturation. The stricter version now combines a smaller per-action cap with an absolute and relative similarity floor.
+
 ## Mechanism
 
 For each candidate action, episodic retrieval now:
@@ -22,14 +24,19 @@ For each candidate action, episodic retrieval now:
 1. scores all candidate episodes by the existing similarity function
 2. groups matches by action
 3. sorts each action's matches by similarity weight
-4. keeps only the top `MAX_SIMILAR_EPISODES_PER_ACTION`
-5. computes reward, event, confidence, reliability, and danger risk from that bounded local set
+4. removes weak local matches below the similarity floor
+5. keeps only the strongest `MAX_SIMILAR_EPISODES_PER_ACTION`
+6. computes reward, event, confidence, reliability, and danger risk from that bounded local set
 
-The current cap is:
+The current retrieval limits are:
 
 ```text
-MAX_SIMILAR_EPISODES_PER_ACTION = 32
+MAX_SIMILAR_EPISODES_PER_ACTION = 8
+MIN_EPISODE_SIMILARITY_WEIGHT = 0.08
+MIN_RELATIVE_SIMILARITY_WEIGHT = 0.35
 ```
+
+The relative floor means an episode must be at least 35% as similar as the strongest available match for the same action. The absolute floor prevents very weak matches from accumulating just because the memory store is large.
 
 This makes memory behave more like attention:
 
@@ -49,7 +56,7 @@ The next persistent-memory capacity sweep should show less saturation at high st
 
 Good signs:
 
-- `prior_usable_rate` no longer immediately goes to `1.0` for large stores
+- `prior_usable_rate` drops for large stores compared with the loose top-K run
 - `prior_usable_rule_agreement` stays meaningfully above raw prior agreement
 - `prior_usable_reward_delta` remains positive when defined
 - the small-cap advantage becomes less extreme
