@@ -30,6 +30,11 @@ PROBE_FIELDS: Final[tuple[str, ...]] = (
     "prior_advice_rate",
     "prior_usable_rate",
     "prior_rule_agreement",
+    "prior_usable_rule_agreement",
+    "prior_usable_imagination_agreement",
+    "prior_advice_mean_reward",
+    "prior_usable_mean_reward",
+    "prior_weak_mean_reward",
 )
 
 
@@ -102,41 +107,30 @@ def summarize_run(
     history: Sequence[StepMetrics],
 ) -> dict[str, object]:
     if not history:
-        return {
-            "run_index": run_index,
-            "seed": seed,
-            "prior_episode_count": 0,
-            "steps": 0,
-            "terminated": False,
-            "truncated": False,
-            "termination_reason": "empty_history",
-            "total_reward": 0.0,
-            "mean_reward": 0.0,
-            "final_energy": 0.0,
-            "seen_ratio": 0.0,
-            "episodic_advice_rate": 0.0,
-            "episodic_usable_rate": 0.0,
-            "prior_advice_rate": 0.0,
-            "prior_usable_rate": 0.0,
-            "prior_rule_agreement": 0.0,
-        }
+        return empty_summary(
+            run_index=run_index,
+            seed=seed,
+        )
 
     final = history[-1]
     total_reward = sum(item.reward for item in history)
     advice_count = sum(item.episodic_has_advice for item in history)
     usable_count = sum(item.episodic_is_usable for item in history)
-    prior_advice_count = sum(
-        item.episodic_prior_action is not None
-        for item in history
-    )
-    prior_usable_count = sum(
-        item.episodic_prior_is_usable
-        for item in history
-    )
-    prior_rule_agreement_count = sum(
-        item.episodic_prior_agrees_with_rule
+
+    prior_advice_items = tuple(
+        item
         for item in history
         if item.episodic_prior_action is not None
+    )
+    prior_usable_items = tuple(
+        item
+        for item in history
+        if item.episodic_prior_is_usable
+    )
+    prior_weak_items = tuple(
+        item
+        for item in prior_advice_items
+        if not item.episodic_prior_is_usable
     )
 
     return {
@@ -153,13 +147,71 @@ def summarize_run(
         "seen_ratio": final.coverage_seen_ratio,
         "episodic_advice_rate": advice_count / len(history),
         "episodic_usable_rate": usable_count / len(history),
-        "prior_advice_rate": prior_advice_count / len(history),
-        "prior_usable_rate": prior_usable_count / len(history),
+        "prior_advice_rate": len(prior_advice_items) / len(history),
+        "prior_usable_rate": len(prior_usable_items) / len(history),
         "prior_rule_agreement": safe_rate(
-            numerator=prior_rule_agreement_count,
-            denominator=prior_advice_count,
+            numerator=sum(
+                item.episodic_prior_agrees_with_rule
+                for item in prior_advice_items
+            ),
+            denominator=len(prior_advice_items),
         ),
+        "prior_usable_rule_agreement": safe_rate(
+            numerator=sum(
+                item.episodic_prior_agrees_with_rule
+                for item in prior_usable_items
+            ),
+            denominator=len(prior_usable_items),
+        ),
+        "prior_usable_imagination_agreement": safe_rate(
+            numerator=sum(
+                item.episodic_prior_agrees_with_imagination
+                for item in prior_usable_items
+            ),
+            denominator=len(prior_usable_items),
+        ),
+        "prior_advice_mean_reward": mean_reward(prior_advice_items),
+        "prior_usable_mean_reward": mean_reward(prior_usable_items),
+        "prior_weak_mean_reward": mean_reward(prior_weak_items),
     }
+
+
+
+def empty_summary(
+    run_index: int,
+    seed: int,
+) -> dict[str, object]:
+    return {
+        "run_index": run_index,
+        "seed": seed,
+        "prior_episode_count": 0,
+        "steps": 0,
+        "terminated": False,
+        "truncated": False,
+        "termination_reason": "empty_history",
+        "total_reward": 0.0,
+        "mean_reward": 0.0,
+        "final_energy": 0.0,
+        "seen_ratio": 0.0,
+        "episodic_advice_rate": 0.0,
+        "episodic_usable_rate": 0.0,
+        "prior_advice_rate": 0.0,
+        "prior_usable_rate": 0.0,
+        "prior_rule_agreement": 0.0,
+        "prior_usable_rule_agreement": 0.0,
+        "prior_usable_imagination_agreement": 0.0,
+        "prior_advice_mean_reward": 0.0,
+        "prior_usable_mean_reward": 0.0,
+        "prior_weak_mean_reward": 0.0,
+    }
+
+
+
+def mean_reward(items: Sequence[StepMetrics]) -> float:
+    if not items:
+        return 0.0
+
+    return sum(item.reward for item in items) / len(items)
 
 
 
