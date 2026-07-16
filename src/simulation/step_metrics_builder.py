@@ -90,5 +90,21 @@ def build_step_metrics(
         memory_last_mystery_position=memory.last_mystery_position,
         memory_last_danger_position=memory.last_danger_position,
 
+        coverage_total_world_cells=memory.total_world_cells,
+        coverage_seen_cell_count=memory.seen_cell_count,
+        coverage_visited_cell_count=memory.visited_cell_count,
+        coverage_unseen_cell_count=memory.unseen_cell_count,
+        coverage_seen_ratio=memory.seen_ratio,
+        coverage_visited_ratio=memory.visited_ratio,
+        coverage_frontier_count=memory.frontier_count,
+        coverage_newly_seen_count=memory.newly_seen_count,
+        coverage_newly_visited_count=memory.newly_visited_count,
+        coverage_first_full_seen_step=(
+            memory.first_full_seen_step
+        ),
+        coverage_first_full_visited_step=(
+            memory.first_full_visited_step
+        ),
+
         outcome_model=outcome_metrics,
     )
