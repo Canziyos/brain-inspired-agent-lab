@@ -74,6 +74,33 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
         "memory_last_mystery_y": mystery_y,
         "memory_last_danger_x": danger_x,
         "memory_last_danger_y": danger_y,
+        "coverage_total_world_cells": (
+            metrics.coverage_total_world_cells
+        ),
+        "coverage_seen_cell_count": (
+            metrics.coverage_seen_cell_count
+        ),
+        "coverage_visited_cell_count": (
+            metrics.coverage_visited_cell_count
+        ),
+        "coverage_unseen_cell_count": (
+            metrics.coverage_unseen_cell_count
+        ),
+        "coverage_seen_ratio": metrics.coverage_seen_ratio,
+        "coverage_visited_ratio": metrics.coverage_visited_ratio,
+        "coverage_frontier_count": metrics.coverage_frontier_count,
+        "coverage_newly_seen_count": (
+            metrics.coverage_newly_seen_count
+        ),
+        "coverage_newly_visited_count": (
+            metrics.coverage_newly_visited_count
+        ),
+        "coverage_first_full_seen_step": optional_csv(
+            metrics.coverage_first_full_seen_step
+        ),
+        "coverage_first_full_visited_step": optional_csv(
+            metrics.coverage_first_full_visited_step
+        ),
         "rule_action": format_action(metrics.rule_action),
         "action_reason": metrics.action_reason,
         "network_action": format_action(metrics.network_action),
