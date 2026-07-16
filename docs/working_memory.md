@@ -6,14 +6,41 @@ This branch adds a small cognitive memory layer without letting it overrule the 
 
 Working memory tracks short-term context during a run:
 
-- the current goal kind and target
-- how long the current goal has been active
-- how many goal switches happened
+- the current goal kind, target, and semantic goal id
+- how long the current semantic goal has been active
+- semantic goal switches versus raw target switches
+- frontier target switches versus frontier semantic switches
 - recent positions, actions, rewards, energies, and events
 - a simple stuck counter
 - last observed food, mystery, and danger positions
 
 The planner receives a goal preference from working memory. If the current goal is still reachable, it receives a continuation bonus, and Baby Vice only switches away when another goal is clearly better.
+
+## Semantic frontier identity
+
+Food and mystery goals use exact target identity:
+
+```text
+food:3:4
+mystery:10:2
+```
+
+Frontier goals use a cluster identity instead of an exact tile:
+
+```text
+frontier:0:5
+```
+
+This matters because frontier targets naturally move as exploration advances. A new frontier tile in the same frontier cluster is not a new intention; it is the same exploration mission moving along the boundary.
+
+The diagnostics now separate:
+
+```text
+semantic_goal_switches = changes in intended goal identity
+target_switches        = changes in exact coordinate target
+```
+
+So Baby Vice is not punished for a frontier boundary sliding one tile like an idiot cloud.
 
 ## Perception coverage diagnostics
 
@@ -31,7 +58,10 @@ Working memory now tracks:
 - seen cells and seen ratio
 - visited cells and visited ratio
 - unseen cell count
-- frontier count per step
+- raw frontier count per step
+- reachable and unreachable frontier counts
+- raw and reachable frontier cluster counts
+- current frontier cluster id
 - newly seen cells per step
 - newly visited cells per step
 - first step each cell was seen
