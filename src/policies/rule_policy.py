@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from src.core.actions import Action, ActionEvaluation
 from src.core.agent import Agent
 from src.core.motivation import (
+    LOW_ENERGY,
     food_action_reason,
     food_motivation,
     mystery_motivation,
@@ -23,26 +24,48 @@ EMPTY_EXPLORE_SCORE = 15.0
 FRONTIER_TRAVEL_SCORE = 14.0
 MYSTERY_TRAVEL_SCORE = 18.0
 
+REST_ALLOWED_BELOW_ENERGY = LOW_ENERGY
+REST_RECOVERY_TARGET_ENERGY = 40.0
+REST_RECOVERY_SCORE = 35.0
+
+PLANNED_ACTION_MIN_SCORE = 30.0
+
 
 def planned_goal_score(
     agent: Agent,
-    kind: GoalKind,
+    plan: GoalPlan,
 ) -> float:
+    if plan.score is not None:
+        return plan.score
+
     state = agent.snapshot()
 
-    if kind is GoalKind.FOOD:
+    if plan.kind is GoalKind.FOOD:
         return food_motivation(state)
 
-    if kind is GoalKind.MYSTERY:
+    if plan.kind is GoalKind.MYSTERY:
         return max(
             MYSTERY_TRAVEL_SCORE,
             mystery_motivation(state),
         )
 
-    if kind is GoalKind.FRONTIER:
+    if plan.kind is GoalKind.FRONTIER:
         return FRONTIER_TRAVEL_SCORE
 
-    raise ValueError(f"Unsupported goal kind: {kind!r}")
+    raise ValueError(f"Unsupported goal kind: {plan.kind!r}")
+
+
+def planned_action_score(
+    agent: Agent,
+    plan: GoalPlan,
+) -> float:
+    return max(
+        planned_goal_score(
+            agent=agent,
+            plan=plan,
+        ),
+        PLANNED_ACTION_MIN_SCORE,
+    )
 
 
 def evaluate_observation(
@@ -93,12 +116,31 @@ def evaluate_observation(
     return None
 
 
+def rest_score(agent: Agent) -> float:
+    base_score = rest_motivation(agent.snapshot())
+
+    if agent.energy < REST_RECOVERY_TARGET_ENERGY:
+        return max(base_score, REST_RECOVERY_SCORE)
+
+    return base_score
+
+
 def rest_evaluation(agent: Agent) -> ActionEvaluation:
     return ActionEvaluation(
         action=Action.REST,
-        policy_score=rest_motivation(agent.snapshot()),
+        policy_score=rest_score(agent),
         rationale="recover energy",
     )
+
+
+def should_consider_rest(
+    agent: Agent,
+    movement_evaluations: Sequence[ActionEvaluation],
+) -> bool:
+    if not movement_evaluations:
+        return True
+
+    return agent.energy < REST_RECOVERY_TARGET_ENERGY
 
 
 def planned_action_matches(
@@ -120,9 +162,9 @@ def apply_goal_plan(
     if plan is None:
         return tuple(evaluations)
 
-    plan_score = planned_goal_score(
+    plan_score = planned_action_score(
         agent=agent,
-        kind=plan.kind,
+        plan=plan,
     )
 
     updated: list[ActionEvaluation] = []
@@ -157,9 +199,7 @@ def evaluate_actions(
     observations: Sequence[Observation],
     plan: GoalPlan | None = None,
 ) -> tuple[ActionEvaluation, ...]:
-    evaluations: list[ActionEvaluation] = [
-        rest_evaluation(agent)
-    ]
+    movement_evaluations: list[ActionEvaluation] = []
 
     for observation in observations:
         evaluation = evaluate_observation(
@@ -168,7 +208,17 @@ def evaluate_actions(
         )
 
         if evaluation is not None:
-            evaluations.append(evaluation)
+            movement_evaluations.append(evaluation)
+
+    evaluations: list[ActionEvaluation] = []
+
+    if should_consider_rest(
+        agent=agent,
+        movement_evaluations=movement_evaluations,
+    ):
+        evaluations.append(rest_evaluation(agent))
+
+    evaluations.extend(movement_evaluations)
 
     return apply_goal_plan(
         agent=agent,

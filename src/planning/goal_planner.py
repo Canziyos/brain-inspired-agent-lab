@@ -14,6 +14,10 @@ from src.planning.frontier_planner import (
     known_traversable_cells,
     shortest_path,
 )
+from src.planning.goal_scoring import (
+    ScoredGoalPlan,
+    score_goal_plan,
+)
 
 
 FRONTIER_MOTIVATION_SCORE = 14.0
@@ -30,6 +34,7 @@ class GoalPlan:
     kind: GoalKind
     target: Position
     path: tuple[Position, ...]
+    score: float | None = None
 
     @property
     def next_step(self) -> Position:
@@ -89,6 +94,41 @@ def build_plan(
         target=path[-1],
         path=tuple(path),
     )
+
+
+def build_scored_plans(
+    candidate: GoalCandidate,
+    agent: Agent,
+    traversable: set[Position],
+    width: int,
+    height: int,
+) -> tuple[ScoredGoalPlan, ...]:
+    scored_plans: list[ScoredGoalPlan] = []
+
+    for target in sorted(candidate.targets):
+        plan = build_plan(
+            kind=candidate.kind,
+            targets=(target,),
+            agent=agent,
+            traversable=traversable,
+            width=width,
+            height=height,
+        )
+
+        if plan is None:
+            continue
+
+        scored_plans.append(
+            score_goal_plan(
+                plan=plan,
+                agent=agent,
+                width=width,
+                height=height,
+                motivation=candidate.priority,
+            )
+        )
+
+    return tuple(scored_plans)
 
 
 def goal_candidates(
@@ -153,25 +193,37 @@ def select_goal_plan(
     height: int,
 ) -> GoalPlan | None:
     traversable = known_traversable_cells(agent)
+    scored_plans: list[ScoredGoalPlan] = []
 
-    for candidate in ranked_goal_candidates(
+    for candidate in goal_candidates(
         agent,
         width,
         height,
     ):
-        plan = build_plan(
-            kind=candidate.kind,
-            targets=candidate.targets,
-            agent=agent,
-            traversable=traversable,
-            width=width,
-            height=height,
+        scored_plans.extend(
+            build_scored_plans(
+                candidate=candidate,
+                agent=agent,
+                traversable=traversable,
+                width=width,
+                height=height,
+            )
         )
 
-        if plan is not None:
-            return plan
+    if not scored_plans:
+        return None
 
-    return None
+    best = max(
+        scored_plans,
+        key=lambda scored_plan: scored_plan.total,
+    )
+
+    return GoalPlan(
+        kind=best.plan.kind,
+        target=best.plan.target,
+        path=best.plan.path,
+        score=best.total,
+    )
 
 
 def has_reachable_goal(
