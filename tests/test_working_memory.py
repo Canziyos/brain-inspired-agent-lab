@@ -15,15 +15,18 @@ from src.planning.goal_scoring import (
 )
 
 
+
 def scored_plan(
     kind: GoalKind,
     target: tuple[int, int],
     total: float,
+    goal_id: str | None = None,
 ) -> ScoredGoalPlan:
     plan = GoalPlan(
         kind=kind,
         target=target,
         path=((0, 0), target),
+        goal_id=goal_id,
     )
 
     return ScoredGoalPlan(
@@ -38,6 +41,7 @@ def scored_plan(
             total=total,
         ),
     )
+
 
 
 def test_working_memory_tracks_selected_goal_and_switches() -> None:
@@ -64,6 +68,8 @@ def test_working_memory_tracks_selected_goal_and_switches() -> None:
     assert snapshot.current_goal_target == (2, 0)
     assert snapshot.current_goal_age == 1
     assert snapshot.goal_switch_count == 1
+    assert snapshot.target_switch_count == 1
+
 
 
 def test_working_memory_goal_preference_uses_current_goal() -> None:
@@ -81,8 +87,42 @@ def test_working_memory_goal_preference_uses_current_goal() -> None:
     assert preference is not None
     assert preference.kind is GoalKind.FOOD
     assert preference.target == (1, 0)
+    assert preference.goal_id == "food:1:0"
     assert preference.continuation_bonus > 0.0
     assert preference.switch_margin > 0.0
+
+
+
+def test_frontier_goal_identity_tracks_region_not_exact_target() -> None:
+    memory = WorkingMemory()
+
+    first = GoalPlan(
+        kind=GoalKind.FRONTIER,
+        target=(1, 0),
+        path=((0, 0), (1, 0)),
+        goal_id="frontier:0:0",
+    )
+    second = GoalPlan(
+        kind=GoalKind.FRONTIER,
+        target=(1, 1),
+        path=((1, 0), (1, 1)),
+        goal_id="frontier:0:0",
+    )
+
+    memory.remember_selected_goal(first)
+    memory.remember_selected_goal(second)
+
+    snapshot = memory.snapshot()
+
+    assert snapshot.current_goal_kind == "frontier"
+    assert snapshot.current_goal_target == (1, 1)
+    assert snapshot.current_goal_id == "frontier:0:0"
+    assert snapshot.current_goal_age == 2
+    assert snapshot.goal_switch_count == 0
+    assert snapshot.target_switch_count == 1
+    assert snapshot.frontier_target_switch_count == 1
+    assert snapshot.frontier_semantic_switch_count == 0
+
 
 
 def test_goal_preference_keeps_current_goal_without_clear_win() -> None:
@@ -111,6 +151,37 @@ def test_goal_preference_keeps_current_goal_without_clear_win() -> None:
     assert choice.total == 18.0
 
 
+
+def test_goal_preference_matches_frontier_by_goal_id() -> None:
+    current = scored_plan(
+        kind=GoalKind.FRONTIER,
+        target=(1, 1),
+        total=10.0,
+        goal_id="frontier:0:0",
+    )
+    challenger = scored_plan(
+        kind=GoalKind.MYSTERY,
+        target=(2, 0),
+        total=20.0,
+    )
+
+    choice = choose_preferred_goal(
+        scored_plans=(current, challenger),
+        preference=GoalPreference(
+            kind=GoalKind.FRONTIER,
+            target=(1, 0),
+            continuation_bonus=8.0,
+            switch_margin=6.0,
+            goal_id="frontier:0:0",
+        ),
+    )
+
+    assert choice.plan.kind is GoalKind.FRONTIER
+    assert choice.plan.target == (1, 1)
+    assert choice.total == 18.0
+
+
+
 def test_goal_preference_allows_clear_win() -> None:
     current = scored_plan(
         kind=GoalKind.FRONTIER,
@@ -137,6 +208,7 @@ def test_goal_preference_allows_clear_win() -> None:
     assert choice.total == 30.0
 
 
+
 def test_working_memory_records_recent_step_context() -> None:
     memory = WorkingMemory()
     agent = Agent(x=2, y=3, energy=44.0)
@@ -155,62 +227,27 @@ def test_working_memory_records_recent_step_context() -> None:
     assert snapshot.energy_trend == 0.0
 
 
-def test_working_memory_tracks_seen_and_visited_coverage() -> None:
+
+def test_working_memory_tracks_coverage_and_reachable_frontiers() -> None:
     memory = WorkingMemory()
     agent = Agent(x=0, y=0)
-    agent.known_cells.update(
-        {
-            (1, 0): CellType.EMPTY,
-            (2, 0): CellType.MYSTERY,
-        }
-    )
-
-    memory.update_coverage(
-        step=3,
-        agent=agent,
-        width=3,
-        height=2,
-    )
-
-    snapshot = memory.snapshot()
-
-    assert snapshot.total_world_cells == 6
-    assert snapshot.seen_cell_count == 3
-    assert snapshot.visited_cell_count == 1
-    assert snapshot.unseen_cell_count == 3
-    assert snapshot.seen_ratio == 0.5
-    assert snapshot.visited_ratio == 1 / 6
-    assert snapshot.newly_seen_count == 3
-    assert snapshot.newly_visited_count == 1
-    assert memory.first_seen_step[(1, 0)] == 3
-    assert memory.first_visited_step[(0, 0)] == 3
-
-
-def test_working_memory_records_first_full_seen_step() -> None:
-    memory = WorkingMemory()
-    agent = Agent(x=0, y=0)
-    agent.known_cells.update(
-        {
-            (1, 0): CellType.EMPTY,
-        }
-    )
+    agent.remember_cell((1, 0), CellType.EMPTY)
+    agent.remember_cell((0, 1), CellType.EMPTY)
 
     memory.update_coverage(
         step=0,
         agent=agent,
-        width=2,
-        height=1,
-    )
-    memory.update_coverage(
-        step=1,
-        agent=agent,
-        width=2,
-        height=1,
+        width=3,
+        height=3,
     )
 
     snapshot = memory.snapshot()
 
-    assert snapshot.first_full_seen_step == 0
-    assert snapshot.first_full_visited_step is None
-    assert snapshot.newly_seen_count == 0
-    assert snapshot.newly_visited_count == 0
+    assert snapshot.total_world_cells == 9
+    assert snapshot.seen_cell_count == 3
+    assert snapshot.visited_cell_count == 1
+    assert snapshot.unseen_cell_count == 6
+    assert snapshot.frontier_count > 0
+    assert snapshot.reachable_frontier_count > 0
+    assert snapshot.frontier_cluster_count >= 1
+    assert snapshot.reachable_frontier_cluster_count >= 1
