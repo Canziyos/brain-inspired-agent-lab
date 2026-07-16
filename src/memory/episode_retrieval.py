@@ -18,6 +18,9 @@ STATE_HEALTH_SCALE = 100.0
 STATE_CURIOSITY_SCALE = 50.0
 SIMILARITY_PRIOR_WEIGHT = 3.0
 CONFIDENCE_MATCH_SCALE = 8.0
+MAX_SIMILAR_EPISODES_PER_ACTION = 8
+MIN_EPISODE_SIMILARITY_WEIGHT = 0.08
+MIN_RELATIVE_SIMILARITY_WEIGHT = 0.35
 
 MIN_USABLE_MATCH_COUNT = 3
 MIN_USABLE_CONFIDENCE = 0.35
@@ -45,6 +48,12 @@ class EpisodeQuery:
     goal_kind: str | None
     goal_id: str | None
     candidate_actions: frozenset[Action]
+
+
+@dataclass(frozen=True, slots=True)
+class WeightedEpisodeMatch:
+    episode: Episode
+    weight: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,6 +214,11 @@ def action_episode_stats(
     query: EpisodeQuery,
     episodes: Sequence[Episode],
 ) -> tuple[ActionEpisodeStats, ...]:
+    matches_by_action = collect_top_similar_matches(
+        query=query,
+        episodes=episodes,
+    )
+
     weighted_rewards: dict[Action, float] = defaultdict(float)
     total_weights: dict[Action, float] = defaultdict(float)
     counts: dict[Action, int] = defaultdict(int)
@@ -216,26 +230,19 @@ def action_episode_stats(
     )
     danger_weights: dict[Action, float] = defaultdict(float)
 
-    for episode in episodes:
-        if episode.action not in query.candidate_actions:
-            continue
+    for action, matches in matches_by_action.items():
+        for match in matches:
+            episode = match.episode
+            weight = match.weight
 
-        weight = episode_similarity_weight(
-            query=query,
-            episode=episode,
-        )
+            weighted_rewards[action] += episode.reward * weight
+            total_weights[action] += weight
+            counts[action] += 1
+            event_weights[action][episode.event] += weight
+            event_counts[action][episode.event] += 1
 
-        if weight <= 0.0:
-            continue
-
-        weighted_rewards[episode.action] += episode.reward * weight
-        total_weights[episode.action] += weight
-        counts[episode.action] += 1
-        event_weights[episode.action][episode.event] += weight
-        event_counts[episode.action][episode.event] += 1
-
-        if episode.event is EventType.HIT_DANGER:
-            danger_weights[episode.action] += weight
+            if episode.event is EventType.HIT_DANGER:
+                danger_weights[action] += weight
 
     stats: list[ActionEpisodeStats] = []
 
@@ -279,6 +286,65 @@ def action_episode_stats(
         )
 
     return tuple(stats)
+
+
+def collect_top_similar_matches(
+    query: EpisodeQuery,
+    episodes: Sequence[Episode],
+) -> dict[Action, tuple[WeightedEpisodeMatch, ...]]:
+    matches_by_action: dict[
+        Action,
+        list[WeightedEpisodeMatch],
+    ] = defaultdict(list)
+
+    for episode in episodes:
+        if episode.action not in query.candidate_actions:
+            continue
+
+        weight = episode_similarity_weight(
+            query=query,
+            episode=episode,
+        )
+
+        if weight <= 0.0:
+            continue
+
+        matches_by_action[episode.action].append(
+            WeightedEpisodeMatch(
+                episode=episode,
+                weight=weight,
+            )
+        )
+
+    selected_by_action: dict[Action, tuple[WeightedEpisodeMatch, ...]] = {}
+
+    for action, matches in matches_by_action.items():
+        ranked_matches = sorted(
+            matches,
+            key=lambda match: (
+                match.weight,
+                match.episode.step,
+            ),
+            reverse=True,
+        )
+        if not ranked_matches:
+            continue
+
+        strongest_weight = ranked_matches[0].weight
+        similarity_floor = max(
+            MIN_EPISODE_SIMILARITY_WEIGHT,
+            strongest_weight * MIN_RELATIVE_SIMILARITY_WEIGHT,
+        )
+        selected = tuple(
+            match
+            for match in ranked_matches
+            if match.weight >= similarity_floor
+        )[:MAX_SIMILAR_EPISODES_PER_ACTION]
+
+        if selected:
+            selected_by_action[action] = selected
+
+    return selected_by_action
 
 
 def episode_similarity_weight(
@@ -523,11 +589,14 @@ def advice_rationale(
 
     return (
         f"episodic advisor ({status}): {stats.match_count} similar "
-        f"episodes, raw_expected_reward={stats.raw_expected_reward:.3f}, "
+        f"episodes used, raw_expected_reward={stats.raw_expected_reward:.3f}, "
         f"calibrated_expected_reward={stats.expected_reward:.3f}, "
         f"confidence={confidence:.3f}, reliability={reliability:.3f}, "
         f"common_event={event_text}, "
         f"danger_risk={stats.risk_hit_danger:.3f}, "
+        f"max_matches_per_action={MAX_SIMILAR_EPISODES_PER_ACTION}, "
+        f"min_similarity_weight={MIN_EPISODE_SIMILARITY_WEIGHT:.3f}, "
+        f"min_relative_similarity={MIN_RELATIVE_SIMILARITY_WEIGHT:.3f}, "
         f"reason={reliability_reason}"
     )
 
