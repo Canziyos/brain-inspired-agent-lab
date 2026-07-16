@@ -1,12 +1,14 @@
 import logging
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 
 from src.configs import SimulationConfig
-from src.envs.grid_world_env import BabyViceGridEnv
+from src.diagnostics.coverage_csv import write_coverage_csv
 from src.diagnostics.episode_csv import write_episodes_csv
 from src.diagnostics.step_csv import write_steps_csv
+from src.envs.grid_world_env import BabyViceGridEnv
 from src.memory.episode_trace import Episode
+from src.memory.working_memory import WorkingMemory
 from src.telemetry.metrics import StepMetrics
 from src.views.animation import animate_simulation
 from src.views.plots import plot_simulation_summary
@@ -104,6 +106,8 @@ def log_final_summary(
             "Simulation finished: "
             "steps=%d, position=%s, "
             "visited=%d, known=%d, "
+            "seen=%d/%d %.1f%%, "
+            "unseen=%d, frontiers=%d, "
             "energy=%.1f, health=%.1f, "
             "curiosity=%.1f, "
             "total_reward=%.2f, "
@@ -119,6 +123,11 @@ def log_final_summary(
         final.position,
         final.visited_count,
         final.known_cell_count,
+        final.coverage_seen_cell_count,
+        final.coverage_total_world_cells,
+        final.coverage_seen_ratio * 100.0,
+        final.coverage_unseen_cell_count,
+        final.coverage_frontier_count,
         final.energy,
         final.health,
         final.curiosity,
@@ -140,12 +149,16 @@ def write_run_outputs(
     terminated: bool,
     truncated: bool,
     episodes: Sequence[Episode],
+    working_memory: WorkingMemory,
+    world_width: int,
+    world_height: int,
 ) -> None:
     if run_directory is None:
         return
 
     steps_path = run_directory / "steps.csv"
     episodes_path = run_directory / "episodes.csv"
+    coverage_path = run_directory / "coverage.csv"
 
     write_steps_csv(
         history=history,
@@ -155,6 +168,13 @@ def write_run_outputs(
     write_episodes_csv(
         episodes=episodes,
         output_path=episodes_path,
+    )
+
+    write_coverage_csv(
+        memory=working_memory,
+        width=world_width,
+        height=world_height,
+        output_path=coverage_path,
     )
 
     log_final_summary(
@@ -171,6 +191,10 @@ def write_run_outputs(
     logger.info(
         "Episode trace written to: %s",
         episodes_path,
+    )
+    logger.info(
+        "Coverage trace written to: %s",
+        coverage_path,
     )
 
 
