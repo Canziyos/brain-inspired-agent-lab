@@ -105,29 +105,41 @@ def log_final_summary(
     )
 
     episodic_advice_count = sum(
-        item.episodic_action is not None
+        item.episodic_has_advice
+        for item in history
+    )
+    episodic_usable_count = sum(
+        item.episodic_is_usable
         for item in history
     )
     episodic_advice_rate = episodic_advice_count / len(history)
+    episodic_usable_rate = episodic_usable_count / len(history)
 
-    episodic_rule_agreement_rate = (
-        sum(
+    episodic_rule_agreement_rate = safe_rate(
+        numerator=sum(
             item.episodic_agrees_with_rule
             for item in history
-        )
-        / episodic_advice_count
-        if episodic_advice_count > 0
-        else 0.0
+            if item.episodic_has_advice
+        ),
+        denominator=episodic_advice_count,
     )
 
-    episodic_imagination_agreement_rate = (
-        sum(
+    episodic_imagination_agreement_rate = safe_rate(
+        numerator=sum(
             item.episodic_agrees_with_imagination
             for item in history
-        )
-        / episodic_advice_count
-        if episodic_advice_count > 0
-        else 0.0
+            if item.episodic_has_advice
+        ),
+        denominator=episodic_advice_count,
+    )
+
+    usable_rule_agreement_rate = safe_rate(
+        numerator=sum(
+            item.episodic_agrees_with_rule
+            for item in history
+            if item.episodic_is_usable
+        ),
+        denominator=episodic_usable_count,
     )
 
     logger.info(
@@ -148,8 +160,10 @@ def log_final_summary(
             "reward_network_agreement=%.1f%%, "
             "imagination_agreement=%.1f%%, "
             "episodic_advice_rate=%.1f%%, "
+            "episodic_usable_rate=%.1f%%, "
             "episodic_rule_agreement=%.1f%%, "
             "episodic_imagination_agreement=%.1f%%, "
+            "usable_episodic_rule_agreement=%.1f%%, "
             "semantic_goal_switches=%d, "
             "target_switches=%d, "
             "frontier_target_switches=%d, "
@@ -179,8 +193,10 @@ def log_final_summary(
         agreement_rate * 100.0,
         imagination_agreement_rate * 100.0,
         episodic_advice_rate * 100.0,
+        episodic_usable_rate * 100.0,
         episodic_rule_agreement_rate * 100.0,
         episodic_imagination_agreement_rate * 100.0,
+        usable_rule_agreement_rate * 100.0,
         final.memory_goal_switch_count,
         final.memory_target_switch_count,
         final.memory_frontier_target_switch_count,
@@ -267,3 +283,14 @@ def show_run_views(
             world=env.world,
             history=history,
         )
+
+
+
+def safe_rate(
+    numerator: int,
+    denominator: int,
+) -> float:
+    if denominator <= 0:
+        return 0.0
+
+    return numerator / denominator
