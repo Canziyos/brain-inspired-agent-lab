@@ -1,6 +1,7 @@
 from src.core.actions import Action
 from src.core.agent import Agent
 from src.core.dynamics_types import EventType
+from src.core.world import CellType
 from src.memory.working_memory import WorkingMemory
 from src.planning.goal_planner import (
     GoalKind,
@@ -152,3 +153,64 @@ def test_working_memory_records_recent_step_context() -> None:
     assert snapshot.recent_rest_count == 1
     assert snapshot.recent_position_revisit_count == 0
     assert snapshot.energy_trend == 0.0
+
+
+def test_working_memory_tracks_seen_and_visited_coverage() -> None:
+    memory = WorkingMemory()
+    agent = Agent(x=0, y=0)
+    agent.known_cells.update(
+        {
+            (1, 0): CellType.EMPTY,
+            (2, 0): CellType.MYSTERY,
+        }
+    )
+
+    memory.update_coverage(
+        step=3,
+        agent=agent,
+        width=3,
+        height=2,
+    )
+
+    snapshot = memory.snapshot()
+
+    assert snapshot.total_world_cells == 6
+    assert snapshot.seen_cell_count == 3
+    assert snapshot.visited_cell_count == 1
+    assert snapshot.unseen_cell_count == 3
+    assert snapshot.seen_ratio == 0.5
+    assert snapshot.visited_ratio == 1 / 6
+    assert snapshot.newly_seen_count == 3
+    assert snapshot.newly_visited_count == 1
+    assert memory.first_seen_step[(1, 0)] == 3
+    assert memory.first_visited_step[(0, 0)] == 3
+
+
+def test_working_memory_records_first_full_seen_step() -> None:
+    memory = WorkingMemory()
+    agent = Agent(x=0, y=0)
+    agent.known_cells.update(
+        {
+            (1, 0): CellType.EMPTY,
+        }
+    )
+
+    memory.update_coverage(
+        step=0,
+        agent=agent,
+        width=2,
+        height=1,
+    )
+    memory.update_coverage(
+        step=1,
+        agent=agent,
+        width=2,
+        height=1,
+    )
+
+    snapshot = memory.snapshot()
+
+    assert snapshot.first_full_seen_step == 0
+    assert snapshot.first_full_visited_step is None
+    assert snapshot.newly_seen_count == 0
+    assert snapshot.newly_visited_count == 0
