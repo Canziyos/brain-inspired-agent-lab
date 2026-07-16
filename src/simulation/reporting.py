@@ -14,6 +14,7 @@ from src.views.animation import animate_simulation
 from src.views.plots import plot_simulation_summary
 
 
+
 def log_startup(
     logger: logging.Logger,
     config: SimulationConfig,
@@ -37,6 +38,7 @@ def log_startup(
         "Run directory: %s",
         run_directory,
     )
+
 
 
 def log_termination(
@@ -68,6 +70,7 @@ def log_termination(
             "Simulation reached the time limit after %d steps.",
             len(history),
         )
+
 
 
 def log_final_summary(
@@ -108,13 +111,20 @@ def log_final_summary(
             "visited=%d, known=%d, "
             "seen=%d/%d %.1f%%, "
             "unseen=%d, frontiers=%d, "
+            "reachable_frontiers=%d, "
+            "unreachable_frontiers=%d, "
+            "frontier_clusters=%d, "
+            "reachable_frontier_clusters=%d, "
             "energy=%.1f, health=%.1f, "
             "curiosity=%.1f, "
             "total_reward=%.2f, "
             "mean_reward=%.3f, "
             "reward_network_agreement=%.1f%%, "
             "imagination_agreement=%.1f%%, "
-            "goal_switches=%d, "
+            "semantic_goal_switches=%d, "
+            "target_switches=%d, "
+            "frontier_target_switches=%d, "
+            "frontier_semantic_switches=%d, "
             "stuck_counter=%d, "
             "terminated=%s, "
             "truncated=%s"
@@ -128,6 +138,10 @@ def log_final_summary(
         final.coverage_seen_ratio * 100.0,
         final.coverage_unseen_cell_count,
         final.coverage_frontier_count,
+        final.coverage_reachable_frontier_count,
+        final.coverage_unreachable_frontier_count,
+        final.coverage_frontier_cluster_count,
+        final.coverage_reachable_frontier_cluster_count,
         final.energy,
         final.health,
         final.curiosity,
@@ -136,10 +150,14 @@ def log_final_summary(
         agreement_rate * 100.0,
         imagination_agreement_rate * 100.0,
         final.memory_goal_switch_count,
+        final.memory_target_switch_count,
+        final.memory_frontier_target_switch_count,
+        final.memory_frontier_semantic_switch_count,
         final.memory_stuck_counter,
         terminated,
         truncated,
     )
+
 
 
 def write_run_outputs(
@@ -196,6 +214,7 @@ def write_run_outputs(
         "Coverage trace written to: %s",
         coverage_path,
     )
+
 
 
 def show_run_views(
