@@ -171,6 +171,15 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
         "episodic_same_run_action": optional_action_csv(
             metrics.episodic_same_run_action
         ),
+        "episodic_same_run_expected_reward": (
+            metrics.episodic_same_run_expected_reward
+        ),
+        "episodic_same_run_confidence": (
+            metrics.episodic_same_run_confidence
+        ),
+        "episodic_same_run_reliability": (
+            metrics.episodic_same_run_reliability
+        ),
         "episodic_same_run_is_usable": (
             metrics.episodic_same_run_is_usable
         ),
@@ -182,6 +191,15 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
         ),
         "episodic_prior_action": optional_action_csv(
             metrics.episodic_prior_action
+        ),
+        "episodic_prior_expected_reward": (
+            metrics.episodic_prior_expected_reward
+        ),
+        "episodic_prior_confidence": (
+            metrics.episodic_prior_confidence
+        ),
+        "episodic_prior_reliability": (
+            metrics.episodic_prior_reliability
         ),
         "episodic_prior_is_usable": metrics.episodic_prior_is_usable,
         "episodic_prior_agrees_with_rule": (
