@@ -106,6 +106,12 @@ def run_simulation_step(
         reward=execution.reward,
         event=execution.event,
     )
+    working_memory.update_coverage(
+        step=step,
+        agent=agent,
+        width=config.world.width,
+        height=config.world.height,
+    )
 
     episodic_trace.record(
         build_episode(
