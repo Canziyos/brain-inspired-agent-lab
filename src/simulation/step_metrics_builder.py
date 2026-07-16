@@ -111,6 +111,15 @@ def build_step_metrics(
         episodic_same_run_episode_count=decision.same_run_episode_count,
 
         episodic_same_run_action=same_run_action,
+        episodic_same_run_expected_reward=(
+            decision.same_run_episodic_advice.expected_reward
+        ),
+        episodic_same_run_confidence=(
+            decision.same_run_episodic_advice.confidence
+        ),
+        episodic_same_run_reliability=(
+            decision.same_run_episodic_advice.reliability
+        ),
         episodic_same_run_is_usable=(
             decision.same_run_episodic_advice.is_usable
         ),
@@ -124,6 +133,15 @@ def build_step_metrics(
         ),
 
         episodic_prior_action=prior_action,
+        episodic_prior_expected_reward=(
+            decision.prior_episodic_advice.expected_reward
+        ),
+        episodic_prior_confidence=(
+            decision.prior_episodic_advice.confidence
+        ),
+        episodic_prior_reliability=(
+            decision.prior_episodic_advice.reliability
+        ),
         episodic_prior_is_usable=(
             decision.prior_episodic_advice.is_usable
         ),
