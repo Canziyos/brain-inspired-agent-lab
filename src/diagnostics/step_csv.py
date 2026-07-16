@@ -141,16 +141,25 @@ def step_metrics_to_csv_row(metrics: StepMetrics) -> dict[str, Any]:
         "rule_imagined_utility": metrics.rule_imagined_utility,
         "imagination_agrees": metrics.imagination_agrees,
         "episodic_action": optional_action_csv(metrics.episodic_action),
+        "episodic_raw_expected_reward": (
+            metrics.episodic_raw_expected_reward
+        ),
         "episodic_expected_reward": metrics.episodic_expected_reward,
         "episodic_confidence": metrics.episodic_confidence,
+        "episodic_reliability": metrics.episodic_reliability,
         "episodic_match_count": metrics.episodic_match_count,
         "episodic_best_event": optional_event_csv(
             metrics.episodic_best_event
         ),
         "episodic_risk_hit_danger": metrics.episodic_risk_hit_danger,
+        "episodic_has_advice": metrics.episodic_has_advice,
+        "episodic_is_usable": metrics.episodic_is_usable,
         "episodic_agrees_with_rule": metrics.episodic_agrees_with_rule,
         "episodic_agrees_with_imagination": (
             metrics.episodic_agrees_with_imagination
+        ),
+        "episodic_reliability_reason": (
+            metrics.episodic_reliability_reason
         ),
         "episodic_rationale": metrics.episodic_rationale,
         "termination_reason": optional_csv(
